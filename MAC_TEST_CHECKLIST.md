@@ -1,4 +1,4 @@
-# UltraFineTune, Mac acceptance checklist
+# Chanterelle, Mac acceptance checklist
 
 This historical checklist records 1.0.0 build 1, Release candidate 1, and remains a guide for future live hardware validation. Stable 1.0.0 build 3 is released; the historical results below are not new measurements. Native build and off-state checks passed; live hardware acceptance is pending. Keep playback volume comfortable while checking route changes and recovery.
 
@@ -33,7 +33,7 @@ Tester and date:
 ## Build and installation
 
 1. On macOS 14.2 or later, run `bash build.sh --run`. Confirm successful native compilation, signature verification, installation to the personal Applications folder, and menu bar launch. Record any compiler warnings.
-2. Quit, then launch `~/Applications/UltraFineTune.app` directly. Confirm a single menu bar instance opens normally.
+2. Quit, then launch `~/Applications/Chanterelle.app` directly. Confirm a single menu bar instance opens normally.
 3. With a copy running, try rebuilding an existing copy. Confirm installation refuses to replace the running app and leaves playback operating normally. Quit, rebuild, and confirm a recognized copy updates successfully.
 4. Review the bundle identifier check in a separate disposable test directory if testing collision behavior. Never replace or rename an unrelated installed app just to exercise this check.
 
@@ -42,7 +42,7 @@ Result and notes:
 ## Permission and first playback
 
 1. Select the LG display as the default macOS output and confirm ordinary audio works before starting the app.
-2. Start tuning. Confirm the system audio capture permission request identifies UltraFineTune and explains its purpose. Confirm the app does not ask to access the microphone.
+2. Start tuning. Confirm the system audio capture permission request identifies Chanterelle and explains its purpose. Confirm the app does not ask to access the microphone.
 3. Deny permission for one test, then confirm a useful error appears and ordinary audio continues. Grant the relevant recording permission in System Settings, quit, reopen, and start again.
 4. With the LG selected, start tuning and confirm audible stereo playback. Confirm the original audio is not doubled, echoed, or fed back through the capture path.
 5. Try selecting an output that is not the Mac's default. Confirm the app explains the required Sound settings change and leaves ordinary playback working.
@@ -68,9 +68,9 @@ Result and notes:
 3. Disconnect the LG while tuning is active. Confirm the app stops and shows a useful status. Reconnect it, reselect the output, and confirm manual restart works.
 4. Change the output sample rate in Audio MIDI Setup while tuning is active, where the device supports it. Confirm the app stops instead of processing stale audio formats. Restore the desired rate and restart.
 5. Put the Mac to sleep while tuning is active, then wake it. Confirm ordinary audio is available after waking and that tuning can be restarted as needed.
-6. Quit UltraFineTune while music is playing. Confirm the original audio route resumes and the default output selection and hardware volume remain as they were.
-7. In Activity Monitor, force quit UltraFineTune during playback. Confirm macOS releases the process tap and ordinary audio returns. Record any delay or manual recovery needed. This check specifically validates process death behavior, which cannot be established by reviewing the normal stop path.
-8. After stopping and quitting, inspect Audio MIDI Setup. Confirm no private UltraFineTune aggregate device remains available as a stale output.
+6. Quit Chanterelle while music is playing. Confirm the original audio route resumes and the default output selection and hardware volume remain as they were.
+7. In Activity Monitor, force quit Chanterelle during playback. Confirm macOS releases the process tap and ordinary audio returns. Record any delay or manual recovery needed. This check specifically validates process death behavior, which cannot be established by reviewing the normal stop path.
+8. After stopping and quitting, inspect Audio MIDI Setup. Confirm no private Chanterelle aggregate device remains available as a stale output.
 9. Leave normal music or spoken audio running through tuning for at least 15 minutes, including a few controls changes. Record dropouts, distortion, latency that affects video, unexpected CPU use, or memory growth.
 
 Result and notes:

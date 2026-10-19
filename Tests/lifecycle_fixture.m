@@ -1,8 +1,8 @@
 /* Extracted engine teardown, with Foundation and fake HAL handles only.
    No Core Audio framework is linked and no device or capture API runs. */
 #import <Foundation/Foundation.h>
-#include "UFEQ.h"
-#include "UFRing.h"
+#include "CHEQ.h"
+#include "CHRing.h"
 #include <assert.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -16,7 +16,7 @@ typedef void *AudioDeviceIOProcID;
 typedef void *AudioUnit;
 typedef int CATapMuteBehavior;
 enum { kAudioObjectUnknown = 0, kAudioHardwareBadObjectError = -99,
-       CATapUnmuted = 0, UFErrorCleanup = 6 };
+       CATapUnmuted = 0, CHErrorCleanup = 6 };
 enum { STOP_CAPTURE, DETACH_CAPTURE, STOP_OUTPUT, UNINITIALIZE_OUTPUT,
        DISPOSE_OUTPUT, UNMUTE, DESTROY_AGGREGATE, DESTROY_TAP, OP_COUNT };
 static unsigned failures, calls[OP_COUNT];
@@ -49,22 +49,22 @@ static OSStatus AudioHardwareDestroyAggregateDevice(AudioDeviceID device) {
 static OSStatus AudioHardwareDestroyProcessTap(AudioObjectID tap) {
     assert(tap); return operation(DESTROY_TAP);
 }
-static NSError *UFError(int code, NSString *message, OSStatus status) {
+static NSError *CHError(int code, NSString *message, OSStatus status) {
     return [NSError errorWithDomain:@"test.engine" code:code
                           userInfo:@{NSLocalizedDescriptionKey: message,
                                      @"status": @(status)}];
 }
 typedef struct {
-    UFEQ *eq;
-    UFRing *ring;
+    CHEQ *eq;
+    CHRing *ring;
     atomic_bool alive;
     atomic_bool renderEnabled;
-} UFRenderState;
+} CHRenderState;
 
-@interface UFTeardownFixture : NSObject {
+@interface CHTeardownFixture : NSObject {
 @public
     NSTimer *_watchdog;
-    UFRenderState *_render;
+    CHRenderState *_render;
     AudioDeviceID _deviceID, _aggregateID;
     AudioObjectID _tapID;
     AudioDeviceIOProcID _ioProcID;
@@ -82,21 +82,21 @@ typedef struct {
 - (void)finishWithError:(NSError *)failure notify:(BOOL)notify;
 @end
 
-@implementation UFTeardownFixture
+@implementation CHTeardownFixture
 - (OSStatus)applyMuteBehavior:(CATapMuteBehavior)behavior {
     assert(behavior == CATapUnmuted);
     if (!_tapID || !_tapDescription) return noErr;
     return operation(UNMUTE);
 }
-/* UFAUDIO_TEARDOWN */
+/* CHAUDIO_TEARDOWN */
 @end
 
-static UFTeardownFixture *session(void) {
-    UFTeardownFixture *s = [UFTeardownFixture new];
+static CHTeardownFixture *session(void) {
+    CHTeardownFixture *s = [CHTeardownFixture new];
     s->_render = calloc(1, sizeof(*s->_render));
     assert(s->_render);
-    s->_render->eq = ufeq_create(48000);
-    s->_render->ring = ufring_create(256, 16);
+    s->_render->eq = cheq_create(48000);
+    s->_render->ring = chring_create(256, 16);
     assert(s->_render->eq && s->_render->ring);
     atomic_init(&s->_render->alive, true);
     atomic_init(&s->_render->renderEnabled, true);
@@ -113,7 +113,7 @@ int main(void) {
         for (unsigned mask = 0; mask < (1u << OP_COUNT); ++mask) {
             failures = mask; badObjects = false;
             memset(calls, 0, sizeof(calls));
-            UFTeardownFixture *s = session();
+            CHTeardownFixture *s = session();
             __block unsigned notifications = 0;
             s.stateChanged = ^(NSError *error) {
                 (void)error; ++notifications;
@@ -134,7 +134,7 @@ int main(void) {
                               (mask & (1u << DESTROY_TAP)) || !outputDetached;
             assert(s->_cleanupFailed == incomplete);
             assert((s.lastError != nil) == incomplete);
-            if (incomplete) assert(s.lastError.code == UFErrorCleanup);
+            if (incomplete) assert(s.lastError.code == CHErrorCleanup);
             failures = 0;
             [s finishWithError:nil notify:NO];
             assert(!s->_cleanupFailed && !s->_render && !s->_aggregateID &&
@@ -146,13 +146,13 @@ int main(void) {
         puts("PASS all 256 teardown failure combinations, retained callback contexts, retries and idempotence");
         failures = (1u << DESTROY_AGGREGATE) | (1u << DESTROY_TAP);
         badObjects = true;
-        UFTeardownFixture *s = session();
-        NSError *original = UFError(3, @"original startup failure", -11);
+        CHTeardownFixture *s = session();
+        NSError *original = CHError(3, @"original startup failure", -11);
         [s finishWithError:original notify:NO];
         assert(!s->_cleanupFailed && !s->_render && s.lastError == original);
         puts("PASS already-destroyed objects accepted and original startup error retained");
         failures = 0; badObjects = false;
-        s = [UFTeardownFixture new];
+        s = [CHTeardownFixture new];
         [s finishWithError:nil notify:NO];
         [s finishWithError:original notify:NO];
         assert(!s->_cleanupFailed && !s->_render && s.lastError == original);
@@ -168,10 +168,10 @@ int main(void) {
             if (stage < 5) s->_outputInitialized = NO;
             if (stage < 4) s->_outputUnit = NULL;
             if (stage < 3) {
-                ufring_destroy(s->_render->ring); s->_render->ring = NULL;
+                chring_destroy(s->_render->ring); s->_render->ring = NULL;
             }
             if (stage < 2) {
-                ufeq_destroy(s->_render->eq); s->_render->eq = NULL;
+                cheq_destroy(s->_render->eq); s->_render->eq = NULL;
             }
             if (stage < 1) { free(s->_render); s->_render = NULL; }
             [s finishWithError:original notify:NO];

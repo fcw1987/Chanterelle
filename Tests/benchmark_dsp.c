@@ -1,7 +1,7 @@
 /* Synthetic DSP timing only. Does not open hardware, capture or play audio. */
 #define _POSIX_C_SOURCE 200809L
-#include "UFEQ.h"
-#include "UFRing.h"
+#include "CHEQ.h"
+#include "CHRing.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -23,30 +23,30 @@ static int compare(const void *a, const void *b) {
     return (x > y) - (x < y);
 }
 static void benchmark(size_t frames, bool bypass) {
-    UFEQ *eq = ufeq_create(48000);
-    UFRing *ring = ufring_create(8192, 1024);
+    CHEQ *eq = cheq_create(48000);
+    CHRing *ring = chring_create(8192, 1024);
     assert(eq && ring);
-    ufeq_set_controls(eq, 6, -4, 3, -3, bypass);
+    cheq_set_controls(eq, 6, -4, 3, -3, bypass);
     float left[MAX_FRAMES], right[MAX_FRAMES], out_l[MAX_FRAMES], out_r[MAX_FRAMES];
     for (unsigned i = 0; i < MAX_FRAMES; ++i) {
         left[i] = (float)(0.25 * sin(i * 0.31));
         right[i] = (float)(0.25 * cos(i * 0.17));
     }
-    assert(ufring_write_stereo(ring, left, 1, right, 1, MAX_FRAMES) == MAX_FRAMES);
+    assert(chring_write_stereo(ring, left, 1, right, 1, MAX_FRAMES) == MAX_FRAMES);
     /* Exclude initial priming and filter smoothing from steady-state timing. */
     for (unsigned b = 0; b < 500; ++b) {
-        assert(ufring_write_stereo(ring, left, 1, right, 1, frames) == frames);
-        assert(ufring_read_stereo(ring, out_l, 1, out_r, 1, frames) == frames);
-        ufeq_process_stereo(eq, out_l, 1, out_r, 1, out_l, 1, out_r, 1, frames);
+        assert(chring_write_stereo(ring, left, 1, right, 1, frames) == frames);
+        assert(chring_read_stereo(ring, out_l, 1, out_r, 1, frames) == frames);
+        cheq_process_stereo(eq, out_l, 1, out_r, 1, out_l, 1, out_r, 1, frames);
     }
     double durations[BLOCKS];
     const double begin = wall_time();
     const clock_t cpu_begin = clock();
     for (unsigned b = 0; b < BLOCKS; ++b) {
         const double block_begin = wall_time();
-        assert(ufring_write_stereo(ring, left, 1, right, 1, frames) == frames);
-        assert(ufring_read_stereo(ring, out_l, 1, out_r, 1, frames) == frames);
-        ufeq_process_stereo(eq, out_l, 1, out_r, 1, out_l, 1, out_r, 1, frames);
+        assert(chring_write_stereo(ring, left, 1, right, 1, frames) == frames);
+        assert(chring_read_stereo(ring, out_l, 1, out_r, 1, frames) == frames);
+        cheq_process_stereo(eq, out_l, 1, out_r, 1, out_l, 1, out_r, 1, frames);
         durations[b] = wall_time() - block_begin;
         result_sink = out_l[b % frames];
     }
@@ -61,11 +61,11 @@ static void benchmark(size_t frames, bool bypass) {
            frames, bypass ? "true" : "false", BLOCKS, audio_seconds, elapsed,
            cpu, cpu / audio_seconds * 100, durations[BLOCKS / 2] * 1e6,
            durations[BLOCKS * 95 / 100] * 1e6, durations[BLOCKS - 1] * 1e6,
-           frames / 48000.0 * 1e6, (unsigned long long)ufeq_clip_count(eq),
-           (unsigned long long)ufring_underruns(ring),
-           (unsigned long long)ufring_overruns(ring));
-    assert(ufeq_clip_count(eq) == 0 && ufring_underruns(ring) == 0 && ufring_overruns(ring) == 0);
-    ufeq_destroy(eq); ufring_destroy(ring);
+           frames / 48000.0 * 1e6, (unsigned long long)cheq_clip_count(eq),
+           (unsigned long long)chring_underruns(ring),
+           (unsigned long long)chring_overruns(ring));
+    assert(cheq_clip_count(eq) == 0 && chring_underruns(ring) == 0 && chring_overruns(ring) == 0);
+    cheq_destroy(eq); chring_destroy(ring);
 }
 int main(void) {
     const size_t frames[] = {64, 256, 1024};

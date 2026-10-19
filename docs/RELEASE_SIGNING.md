@@ -1,70 +1,53 @@
-# Release signing preparation
+# Release signing
 
-The 1.0.1 release (build 4) is Developer ID signed and Apple notarized, with hardened runtime, a secure timestamp, and a validated stapled ticket. The exact release ZIP passes strict signature verification, Gatekeeper assessment as Notarized Developer ID, and the signed off-state self-test. See the [validation summary](../VALIDATION.md) for its checksum and boundaries. The original 1.0.0 release remains ad hoc signed and not notarized.
+Chanterelle uses the existing Developer ID Application identity, signing team, and bundle identifier. Release 1.1.0 (build 5) is packaged for Apple silicon and macOS 14.2+. See [validation evidence](../VALIDATION.md) for the exact release ZIP, signature, notarization, and checksum results. Signing alone does not establish notarization.
 
-The following operator checklist reproduces the signing and distribution process; signing or archive creation alone does not establish notarization.
-
-## Local compatibility check
+## Local source builds
 
 ```sh
-bash build.sh --hardened-runtime --output-dir /tmp/UltraFineTune-runtime-review
-/tmp/UltraFineTune-runtime-review/UltraFineTune.app/Contents/MacOS/UltraFineTune --self-test
-codesign --verify --strict /tmp/UltraFineTune-runtime-review/UltraFineTune.app
-codesign --display --verbose=4 /tmp/UltraFineTune-runtime-review/UltraFineTune.app
+bash build.sh --hardened-runtime --output-dir /tmp/Chanterelle-runtime-review
+/tmp/Chanterelle-runtime-review/Chanterelle.app/Contents/MacOS/Chanterelle --self-test
+codesign --verify --strict /tmp/Chanterelle-runtime-review/Chanterelle.app
 ```
 
-The signature display should contain `runtime`. This remains an ad hoc build with no secure timestamp or trusted publisher. The self-test is an off-state check; it does not start capture, test listening, or establish permission acceptance. A successful build does not establish hardened-runtime compatibility with live Core Audio process taps.
+Default builds are ad hoc signed. `--hardened-runtime` adds runtime protection for local checks, without a trusted publisher or secure timestamp. Self-test stays off and creates no audio resources.
 
-## Sign using existing credentials
+## Sign and archive
 
-Proceed only when the operator has an authorized, existing Developer ID Application certificate and its private key available to `codesign`. This guide does not create credentials, export keys, or store secrets. Substitute the full existing certificate name:
+Use an existing authorized Developer ID Application identity and its private key. Do not create credentials or export keys as part of a release. The command line builder accepts the full existing certificate name:
 
 ```sh
-bash build.sh --release-sign-identity 'Developer ID Application: FULL EXISTING NAME (TEAMID)' --output-dir /tmp/UltraFineTune-release-candidate
-codesign --verify --strict /tmp/UltraFineTune-release-candidate/UltraFineTune.app
-codesign --display --verbose=4 /tmp/UltraFineTune-release-candidate/UltraFineTune.app
+bash build.sh --release-sign-identity 'Developer ID Application: FULL EXISTING NAME (TEAMID)' --output-dir /tmp/Chanterelle-release-candidate
 ```
 
-Record the expected Developer ID Application authority, TeamIdentifier, secure `Timestamp`, and `runtime` flag. An unavailable identity, locked or inaccessible key, or timestamp-server failure must fail the build; the script does not fall back to ad hoc signing. Default source builds remain ad hoc signed. No entitlements are added by these options.
-
-Before distribution, test the exact signed candidate under the [Mac acceptance checklist](../MAC_TEST_CHECKLIST.md), including capture permission and supported hardware playback. Capture testing requires separate operator approval. The existing `NSAudioCaptureUsageDescription`, bundle identifier `local.ultrafinetune.app`, and preference keys remain unchanged. Whether live process taps need an additional hardened-runtime audio entitlement in this app is unresolved; do not add microphone/audio-input entitlements or claim capture compatibility based on the off-state check.
-
-## Archive with Xcode
-
-The shared `UltraFineTune` scheme builds the existing native sources as a macOS application. Release uses manual Developer ID signing, hardened runtime, a secure timestamp, arm64, and macOS 14.2. It does not add sandbox or microphone entitlements. Use an existing authorized team and identity; override the project team for your own account:
+The shared Xcode Release scheme uses manual Developer ID signing, hardened runtime, a secure timestamp, arm64, and macOS 14.2. It does not add sandbox or microphone entitlements:
 
 ```sh
-xcodebuild -project UltraFineTune.xcodeproj -scheme UltraFineTune \
+xcodebuild -project Chanterelle.xcodeproj -scheme Chanterelle \
   -configuration Release -destination 'generic/platform=macOS' \
-  -derivedDataPath /tmp/UltraFineTune-derived \
-  -archivePath /tmp/UltraFineTune.xcarchive \
+  -derivedDataPath /tmp/Chanterelle-derived \
+  -archivePath /tmp/Chanterelle.xcarchive \
   -disableAutomaticPackageResolution archive \
   DEVELOPMENT_TEAM=EXISTING_TEAM_ID \
   CODE_SIGN_IDENTITY='Developer ID Application: FULL EXISTING NAME (TEAMID)'
 ```
 
-Open the genuine archive in Xcode Organizer. With an existing signed-in Apple Developer account, **Distribute App → Direct Distribution** provides the notarization workflow. Proceed with an Apple upload only when explicitly authorized. No new notarytool profile is needed for this Organizer route. Archive creation and Developer ID signing alone do not establish notarization or release acceptance.
+Keep the compatibility identity described in [upgrading](UPGRADING.md). Verify the expected Developer ID authority, TeamIdentifier, secure Timestamp, and runtime flag. A missing identity, inaccessible private key, or timestamp failure must stop the release; do not fall back to ad hoc signing.
 
-## Notarize and verify before publication
+## Notarization and exact-package checks
 
-These commands are an operator checklist, not an automated release. They require a separately authorized submission and an existing notarytool Keychain profile. `EXISTING_NOTARY_PROFILE` is a placeholder, not a credential to create here.
-
-```sh
-ditto -c -k --keepParent /tmp/UltraFineTune-release-candidate/UltraFineTune.app /tmp/UltraFineTune-notary-submission.zip
-xcrun notarytool submit /tmp/UltraFineTune-notary-submission.zip --keychain-profile EXISTING_NOTARY_PROFILE --wait
-```
-
-Save the submission ID and result. Require Apple's **Accepted** status. If rejected or incomplete, inspect the submission log with `xcrun notarytool log SUBMISSION_ID --keychain-profile EXISTING_NOTARY_PROFILE`; fix the issue and submit again. Never publish an unsuccessful submission as notarized.
-
-After acceptance, attach and validate the ticket on the app (ZIP files cannot be stapled):
+Use the existing signed-in Xcode distribution account to upload a Developer ID archive for notarization, or an already authorized notarytool Keychain profile. An upload must be authorized by the operator. Do not create a profile or accept a new agreement implicitly. Require Apple's Accepted / Ready to Distribute result, export the notarized app, then validate it:
 
 ```sh
-xcrun stapler staple /tmp/UltraFineTune-release-candidate/UltraFineTune.app
-xcrun stapler validate /tmp/UltraFineTune-release-candidate/UltraFineTune.app
-codesign --verify --strict /tmp/UltraFineTune-release-candidate/UltraFineTune.app
-spctl --assess --type execute --verbose=4 /tmp/UltraFineTune-release-candidate/UltraFineTune.app
+xcrun stapler validate /path/to/Chanterelle.app
+codesign --verify --deep --strict /path/to/Chanterelle.app
+codesign --display --verbose=4 /path/to/Chanterelle.app
+spctl --assess --type execute --verbose=4 /path/to/Chanterelle.app
+/path/to/Chanterelle.app/Contents/MacOS/Chanterelle --self-test
 ```
 
-Require successful stapler validation and Gatekeeper acceptance with the expected notarized Developer ID origin. Repackage the stapled app with the installation guide and license, then calculate the final ZIP's SHA-256. Extract that exact ZIP to a clean location and repeat signature, stapler, and Gatekeeper checks before publishing. Validate a downloaded, quarantined copy through the normal launch path as part of release acceptance. Any app changes after signing require rebuilding, signing, and notarizing again.
+Require a valid stapled ticket and Gatekeeper acceptance as Notarized Developer ID. Package the app with `INSTALL.md` and `LICENSE`, compute SHA-256, extract the exact ZIP into a clean folder, and repeat the checks. Repeat against a fresh public download. Any signed app modification requires rebuilding, signing, and notarizing again.
 
-Apple references: [notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution), [customizing the notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow), [resolving notarization issues](https://developer.apple.com/documentation/security/resolving-common-notarization-issues), [hardened runtime](https://developer.apple.com/documentation/security/hardened-runtime), and [Core Audio taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps). The local `man codesign` and `xcrun notarytool --help` describe installed tool behavior.
+The off-state checks do not establish live capture permission, listening quality, latency, or hardware recovery. Complete the [Mac acceptance checklist](../MAC_TEST_CHECKLIST.md) with comfortable volume before claiming those results. The rebrand does not start capture or change audio devices to exercise them.
+
+References: [Apple notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution), [custom notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow), and local `xcodebuild -help`, `man codesign`, and `xcrun notarytool --help`.

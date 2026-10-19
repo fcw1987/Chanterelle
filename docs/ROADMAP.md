@@ -9,4 +9,4 @@ These are ideas for later review, not shipped features or commitments.
 - Measured speaker correction only with documented hardware measurements and model matching.
 - CI on supported Apple hardware and broader live hardware acceptance, including live process taps under hardened runtime.
 
-Future validation includes live listening acceptance of 1.0.1 at comfortable volume, including normal quit, output disconnect, wake and permission recovery. No extra drivers, automatic route/volume changes, or network service are planned for this pass.
+Future validation includes live listening acceptance of 1.1.0 at comfortable volume, including normal quit, output disconnect, wake and permission recovery. No extra drivers, automatic route/volume changes, or network service are planned for this pass.

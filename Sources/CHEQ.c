@@ -1,4 +1,4 @@
-#include "UFEQ.h"
+#include "CHEQ.h"
 
 #include <float.h>
 #include <math.h>
@@ -24,40 +24,40 @@ _Static_assert(sizeof(float) == sizeof(uint32_t), "Float32 audio is required");
 _Static_assert(FLT_RADIX == 2 && FLT_MANT_DIG == 24, "IEEE Float32 is required");
 
 enum {
-    UF_BANDS = 3,
-    UF_CONTROL_INTERVAL = 32,
-    UF_RESPONSE_POINTS = 513,
-    UF_GAIN_BITS = 11,
-    UF_TRIM_SHIFT = 33,
-    UF_BYPASS_SHIFT = 44,
-    UF_HEADROOM_SHIFT = 45
+    CH_BANDS = 3,
+    CH_CONTROL_INTERVAL = 32,
+    CH_RESPONSE_POINTS = 513,
+    CH_GAIN_BITS = 11,
+    CH_TRIM_SHIFT = 33,
+    CH_BYPASS_SHIFT = 44,
+    CH_HEADROOM_SHIFT = 45
 };
 
-static const double UF_PI = 3.14159265358979323846264338327950288;
-static const uint64_t UF_GAIN_MASK = UINT64_C(2047);
-static const uint64_t UF_HEADROOM_MASK = UINT64_C(4095);
+static const double CH_PI = 3.14159265358979323846264338327950288;
+static const uint64_t CH_GAIN_MASK = UINT64_C(2047);
+static const uint64_t CH_HEADROOM_MASK = UINT64_C(4095);
 
 typedef struct {
     double b0, b1, b2, a1, a2;
-} UFCoefficients;
+} CHCoefficients;
 
 typedef struct {
     double sine;
     double cosine;
     double frequency;
-} UFFrequency;
+} CHFrequency;
 
 typedef struct {
-    UFCoefficients current;
-    UFCoefficients end;
-    UFCoefficients step;
+    CHCoefficients current;
+    CHCoefficients end;
+    CHCoefficients step;
     double x1[2], x2[2], y1[2], y2[2];
-} UFFilter;
+} CHFilter;
 
-struct UFEQ {
+struct CHEQ {
     /* Immutable after create, also read by the control thread. */
     double sample_rate;
-    UFFrequency frequency[UF_BANDS];
+    CHFrequency frequency[CH_BANDS];
     double tone_alpha;
     double headroom_attack_alpha;
     double headroom_release_alpha;
@@ -69,15 +69,15 @@ struct UFEQ {
 
     /* Everything below here, except the explicit atomics, belongs to audio. */
     uint64_t last_controls;
-    double target_tone[UF_BANDS];
-    double current_tone[UF_BANDS];
+    double target_tone[CH_BANDS];
+    double current_tone[CH_BANDS];
     double target_auto_gain;
     double current_auto_gain;
     double target_trim_gain;
     double current_trim_gain;
     double target_wet;
     double current_wet;
-    UFFilter filters[UF_BANDS];
+    CHFilter filters[CH_BANDS];
     unsigned control_remaining;
 
     double input_envelope;
@@ -117,17 +117,17 @@ static int quantize_db(float value, double low, double high) {
     return (int)lround(finite_value * 100.0);
 }
 
-static uint64_t pack_controls(const int tone[UF_BANDS], int trim,
+static uint64_t pack_controls(const int tone[CH_BANDS], int trim,
                               bool bypass, unsigned headroom) {
     return (uint64_t)(tone[0] + 600)
          | ((uint64_t)(tone[1] + 600) << 11)
          | ((uint64_t)(tone[2] + 600) << 22)
-         | ((uint64_t)(-trim) << UF_TRIM_SHIFT)
-         | ((uint64_t)bypass << UF_BYPASS_SHIFT)
-         | ((uint64_t)headroom << UF_HEADROOM_SHIFT);
+         | ((uint64_t)(-trim) << CH_TRIM_SHIFT)
+         | ((uint64_t)bypass << CH_BYPASS_SHIFT)
+         | ((uint64_t)headroom << CH_HEADROOM_SHIFT);
 }
 
-static UFCoefficients make_coefficients(const UFFrequency *frequency,
+static CHCoefficients make_coefficients(const CHFrequency *frequency,
                                         unsigned band, double gain_db) {
     const double A = pow(10.0, gain_db / 40.0);
     const double c = frequency->cosine;
@@ -163,21 +163,21 @@ static UFCoefficients make_coefficients(const UFFrequency *frequency,
             a2 = ap - am * c - beta;
         }
     }
-    const UFCoefficients result = {
+    const CHCoefficients result = {
         b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0
     };
     return result;
 }
 
-static double response_power(const UFCoefficients coefficients[UF_BANDS],
+static double response_power(const CHCoefficients coefficients[CH_BANDS],
                              double radians) {
     const double c1 = cos(radians);
     const double s1 = sin(radians);
     const double c2 = 2.0 * c1 * c1 - 1.0;
     const double s2 = 2.0 * s1 * c1;
     double result = 1.0;
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
-        const UFCoefficients *c = &coefficients[band];
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
+        const CHCoefficients *c = &coefficients[band];
         const double nr = c->b0 + c->b1 * c1 + c->b2 * c2;
         const double ni = c->b1 * s1 + c->b2 * s2;
         const double dr = 1.0 + c->a1 * c1 + c->a2 * c2;
@@ -190,12 +190,12 @@ static double response_power(const UFCoefficients coefficients[UF_BANDS],
 }
 
 /* Runs on the setter thread, never in the audio callback. */
-static unsigned estimate_headroom(const UFEQ *eq, const int tone[UF_BANDS]) {
+static unsigned estimate_headroom(const CHEQ *eq, const int tone[CH_BANDS]) {
     if (tone[0] == 0 && tone[1] == 0 && tone[2] == 0) return 0;
 
-    UFCoefficients coefficients[UF_BANDS];
+    CHCoefficients coefficients[CH_BANDS];
     double fallback_db = 1.0;
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
         const double db = (double)tone[band] / 100.0;
         coefficients[band] = make_coefficients(&eq->frequency[band], band, db);
         fallback_db += fmax(0.0, db);
@@ -203,34 +203,34 @@ static unsigned estimate_headroom(const UFEQ *eq, const int tone[UF_BANDS]) {
 
     /* Include DC, Nyquist, exact centers, and a dense logarithmic grid. */
     double maximum = fmax(1.0, response_power(coefficients, 0.0));
-    maximum = fmax(maximum, response_power(coefficients, UF_PI));
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
-        const double w = 2.0 * UF_PI * eq->frequency[band].frequency
+    maximum = fmax(maximum, response_power(coefficients, CH_PI));
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
+        const double w = 2.0 * CH_PI * eq->frequency[band].frequency
                        / eq->sample_rate;
         maximum = fmax(maximum, response_power(coefficients, w));
     }
     const double start_hz = 5.0;
     const double ratio = pow((eq->sample_rate * 0.5) / start_hz,
-                             1.0 / (UF_RESPONSE_POINTS - 1));
+                             1.0 / (CH_RESPONSE_POINTS - 1));
     double hz = start_hz;
-    for (unsigned i = 0; i < UF_RESPONSE_POINTS; ++i, hz *= ratio) {
-        const double w = 2.0 * UF_PI * hz / eq->sample_rate;
+    for (unsigned i = 0; i < CH_RESPONSE_POINTS; ++i, hz *= ratio) {
+        const double w = 2.0 * CH_PI * hz / eq->sample_rate;
         maximum = fmax(maximum, response_power(coefficients, w));
     }
     const double sampled_db = 10.0 * log10(maximum) + 1.0;
     const double db = isfinite(sampled_db) ? sampled_db : fallback_db;
     const double cents = ceil(fmax(0.0, db) * 100.0);
-    return (unsigned)fmin(cents, (double)UF_HEADROOM_MASK);
+    return (unsigned)fmin(cents, (double)CH_HEADROOM_MASK);
 }
 
-UFEQ *ufeq_create(double sampleRate) {
+CHEQ *cheq_create(double sampleRate) {
     if (!isfinite(sampleRate) || sampleRate < 8000.0 || sampleRate > 384000.0) {
         return NULL;
     }
-    UFEQ *eq = calloc(1, sizeof(*eq));
+    CHEQ *eq = calloc(1, sizeof(*eq));
     if (!eq) return NULL;
 
-    const int flat[UF_BANDS] = {0, 0, 0};
+    const int flat[CH_BANDS] = {0, 0, 0};
     const uint64_t initial = pack_controls(flat, 0, false, 0);
     atomic_init(&eq->controls, initial);
     atomic_init(&eq->meter_input, float_bits(0.0f));
@@ -247,7 +247,7 @@ UFEQ *ufeq_create(double sampleRate) {
 
     eq->sample_rate = sampleRate;
     eq->last_controls = initial;
-    eq->tone_alpha = 1.0 - exp(-UF_CONTROL_INTERVAL / (0.050 * sampleRate));
+    eq->tone_alpha = 1.0 - exp(-CH_CONTROL_INTERVAL / (0.050 * sampleRate));
     eq->headroom_attack_alpha = 1.0 - exp(-1.0 / (0.004 * sampleRate));
     eq->headroom_release_alpha = 1.0 - exp(-1.0 / (0.250 * sampleRate));
     eq->trim_alpha = 1.0 - exp(-1.0 / (0.020 * sampleRate));
@@ -255,11 +255,11 @@ UFEQ *ufeq_create(double sampleRate) {
     eq->target_auto_gain = eq->current_auto_gain = 1.0;
     eq->target_trim_gain = eq->current_trim_gain = 1.0;
     eq->target_wet = eq->current_wet = 1.0;
-    const double frequencies[UF_BANDS] = {150.0, 900.0, 4500.0};
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
-        UFFrequency *f = &eq->frequency[band];
+    const double frequencies[CH_BANDS] = {150.0, 900.0, 4500.0};
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
+        CHFrequency *f = &eq->frequency[band];
         f->frequency = fmin(frequencies[band], 0.4 * sampleRate);
-        const double w = 2.0 * UF_PI * f->frequency / sampleRate;
+        const double w = 2.0 * CH_PI * f->frequency / sampleRate;
         f->sine = sin(w);
         f->cosine = cos(w);
         eq->filters[band].current = make_coefficients(f, band, 0.0);
@@ -268,14 +268,14 @@ UFEQ *ufeq_create(double sampleRate) {
     return eq;
 }
 
-void ufeq_destroy(UFEQ *eq) {
+void cheq_destroy(CHEQ *eq) {
     free(eq);
 }
 
-void ufeq_set_controls(UFEQ *eq, float bass, float mid, float treble,
+void cheq_set_controls(CHEQ *eq, float bass, float mid, float treble,
                       float trim, bool bypass) {
     if (!eq) return;
-    const int tone[UF_BANDS] = {
+    const int tone[CH_BANDS] = {
         quantize_db(bass, -6.0, 6.0),
         quantize_db(mid, -6.0, 6.0),
         quantize_db(treble, -6.0, 6.0)
@@ -286,9 +286,9 @@ void ufeq_set_controls(UFEQ *eq, float bass, float mid, float treble,
     atomic_store_explicit(&eq->controls, packet, memory_order_release);
 }
 
-static UFCoefficients coefficient_step(UFCoefficients from, UFCoefficients to) {
-    const double amount = 1.0 / UF_CONTROL_INTERVAL;
-    const UFCoefficients step = {
+static CHCoefficients coefficient_step(CHCoefficients from, CHCoefficients to) {
+    const double amount = 1.0 / CH_CONTROL_INTERVAL;
+    const CHCoefficients step = {
         (to.b0 - from.b0) * amount,
         (to.b1 - from.b1) * amount,
         (to.b2 - from.b2) * amount,
@@ -298,36 +298,36 @@ static UFCoefficients coefficient_step(UFCoefficients from, UFCoefficients to) {
     return step;
 }
 
-static void start_control_interval(UFEQ *eq) {
+static void start_control_interval(CHEQ *eq) {
     const uint64_t packet = atomic_load_explicit(&eq->controls, memory_order_acquire);
     if (packet != eq->last_controls) {
-        for (unsigned band = 0; band < UF_BANDS; ++band) {
-            const int cents = (int)((packet >> (band * UF_GAIN_BITS))
-                                    & UF_GAIN_MASK) - 600;
+        for (unsigned band = 0; band < CH_BANDS; ++band) {
+            const int cents = (int)((packet >> (band * CH_GAIN_BITS))
+                                    & CH_GAIN_MASK) - 600;
             eq->target_tone[band] = cents / 100.0;
         }
-        const double trim_db = -(double)((packet >> UF_TRIM_SHIFT) & UF_GAIN_MASK)
+        const double trim_db = -(double)((packet >> CH_TRIM_SHIFT) & CH_GAIN_MASK)
                              / 100.0;
-        const double headroom_db = (double)((packet >> UF_HEADROOM_SHIFT)
-                                            & UF_HEADROOM_MASK) / 100.0;
+        const double headroom_db = (double)((packet >> CH_HEADROOM_SHIFT)
+                                            & CH_HEADROOM_MASK) / 100.0;
         eq->target_auto_gain = pow(10.0, -headroom_db / 20.0);
         eq->target_trim_gain = pow(10.0, trim_db / 20.0);
-        eq->target_wet = ((packet >> UF_BYPASS_SHIFT) & 1) ? 0.0 : 1.0;
+        eq->target_wet = ((packet >> CH_BYPASS_SHIFT) & 1) ? 0.0 : 1.0;
         eq->last_controls = packet;
     }
 
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
         double gain = eq->current_tone[band];
         gain += eq->tone_alpha * (eq->target_tone[band] - gain);
         if (fabs(eq->target_tone[band] - gain) < 1e-7) {
             gain = eq->target_tone[band];
         }
         eq->current_tone[band] = gain;
-        UFFilter *filter = &eq->filters[band];
+        CHFilter *filter = &eq->filters[band];
         filter->end = make_coefficients(&eq->frequency[band], band, gain);
         filter->step = coefficient_step(filter->current, filter->end);
     }
-    eq->control_remaining = UF_CONTROL_INTERVAL;
+    eq->control_remaining = CH_CONTROL_INTERVAL;
 }
 
 static double smooth(double current, double target, double alpha) {
@@ -335,25 +335,25 @@ static double smooth(double current, double target, double alpha) {
     return fabs(target - current) < 1e-10 ? target : current;
 }
 
-static double finite_input(float value, UFEQ *eq) {
+static double finite_input(float value, CHEQ *eq) {
     if (isfinite(value)) return value;
     count_event(&eq->invalid_samples);
     return 0.0;
 }
 
-static void clear_channel_after_fault(UFEQ *eq, unsigned channel) {
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
-        UFFilter *f = &eq->filters[band];
+static void clear_channel_after_fault(CHEQ *eq, unsigned channel) {
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
+        CHFilter *f = &eq->filters[band];
         f->x1[channel] = f->x2[channel] = 0.0;
         f->y1[channel] = f->y2[channel] = 0.0;
     }
 }
 
-static double filter_channel(UFEQ *eq, unsigned channel, double input) {
+static double filter_channel(CHEQ *eq, unsigned channel, double input) {
     double x = input;
-    for (unsigned band = 0; band < UF_BANDS; ++band) {
-        UFFilter *f = &eq->filters[band];
-        const UFCoefficients *c = &f->current;
+    for (unsigned band = 0; band < CH_BANDS; ++band) {
+        CHFilter *f = &eq->filters[band];
+        const CHCoefficients *c = &f->current;
         /* Group matched numerator and denominator terms for flat identity. */
         double y = c->b0 * x
                  + (c->b1 * f->x1[channel] - c->a1 * f->y1[channel])
@@ -374,7 +374,7 @@ static double filter_channel(UFEQ *eq, unsigned channel, double input) {
     return x;
 }
 
-static float safe_output(UFEQ *eq, double value) {
+static float safe_output(CHEQ *eq, double value) {
     if (!isfinite(value)) {
         count_event(&eq->invalid_samples);
         return 0.0f;
@@ -390,7 +390,7 @@ static float safe_output(UFEQ *eq, double value) {
     return (float)value;
 }
 
-void ufeq_process_stereo(UFEQ *eq,
+void cheq_process_stereo(CHEQ *eq,
                         const float *inL, size_t inLStride,
                         const float *inR, size_t inRStride,
                         float *outL, size_t outLStride,
@@ -406,8 +406,8 @@ void ufeq_process_stereo(UFEQ *eq,
     for (size_t frame = 0; frame < frames; ++frame) {
         if (!eq->control_remaining) start_control_interval(eq);
 
-        for (unsigned band = 0; band < UF_BANDS; ++band) {
-            UFFilter *f = &eq->filters[band];
+        for (unsigned band = 0; band < CH_BANDS; ++band) {
+            CHFilter *f = &eq->filters[band];
             f->current.b0 += f->step.b0;
             f->current.b1 += f->step.b1;
             f->current.b2 += f->step.b2;
@@ -440,7 +440,7 @@ void ufeq_process_stereo(UFEQ *eq,
 
         --eq->control_remaining;
         if (!eq->control_remaining) {
-            for (unsigned band = 0; band < UF_BANDS; ++band) {
+            for (unsigned band = 0; band < CH_BANDS; ++band) {
                 eq->filters[band].current = eq->filters[band].end;
             }
         }
@@ -466,7 +466,7 @@ void ufeq_process_stereo(UFEQ *eq,
     atomic_store_explicit(&eq->meter_invalid, eq->invalid_samples, memory_order_relaxed);
 }
 
-void ufeq_get_meters(const UFEQ *eq, UFEQMeters *meters) {
+void cheq_get_meters(const CHEQ *eq, CHEQMeters *meters) {
     if (!meters) return;
     if (!eq) {
         memset(meters, 0, sizeof(*meters));
@@ -482,12 +482,12 @@ void ufeq_get_meters(const UFEQ *eq, UFEQMeters *meters) {
     meters->invalid_samples = atomic_load_explicit(&eq->meter_invalid, memory_order_relaxed);
 }
 
-float ufeq_peak(const UFEQ *eq) {
+float cheq_peak(const CHEQ *eq) {
     if (!eq) return 0.0f;
     return bits_float(atomic_load_explicit(&eq->meter_output, memory_order_relaxed));
 }
 
-uint64_t ufeq_clip_count(const UFEQ *eq) {
+uint64_t cheq_clip_count(const CHEQ *eq) {
     if (!eq) return 0;
     return atomic_load_explicit(&eq->meter_clips, memory_order_relaxed);
 }

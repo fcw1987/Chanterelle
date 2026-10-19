@@ -30,18 +30,18 @@ def main() -> None:
     sanitizer.add_argument("--thread-sanitize", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
-    source = (root / "Sources" / "UFAudioEngine.m").read_text()
+    source = (root / "Sources" / "CHAudioEngine.m").read_text()
     start_marker = "typedef struct {\n    float *left;"
-    end_marker = "@interface UFAudioEngine"
+    end_marker = "@interface CHAudioEngine"
     if source.count(start_marker) != 1 or source.count(end_marker) != 1:
         raise SystemExit("The callback extraction boundaries changed. Update this test runner.")
     start = source.index(start_marker)
     end = source.index(end_marker, start)
     callbacks = source[start:end]
-    if "UFCaptureRender" not in callbacks or "UFOutputRender" not in callbacks:
+    if "CHCaptureRender" not in callbacks or "CHOutputRender" not in callbacks:
         raise SystemExit("Both native callbacks must be present in the extracted source.")
     fixture = (root / "Tests" / "callback_fixture.c").read_text()
-    fixture_marker = "/* UFAUDIO_CALLBACKS */"
+    fixture_marker = "/* CHAUDIO_CALLBACKS */"
     if fixture.count(fixture_marker) != 1:
         raise SystemExit("The callback fixture must contain exactly one insertion marker.")
     compiler = shlex.split(os.environ.get("CC", "cc"))
@@ -57,14 +57,14 @@ def main() -> None:
     environment = os.environ.copy()
     if args.sanitize:
         environment.setdefault("ASAN_OPTIONS", "detect_leaks=0")
-    with tempfile.TemporaryDirectory(prefix="ultrafine_callback_checks_") as directory:
+    with tempfile.TemporaryDirectory(prefix="chanterelle_callback_checks_") as directory:
         scratch = Path(directory)
         test_source = scratch / "callbacks.c"
         test_source.write_text(fixture.replace(fixture_marker, callbacks))
         executable = scratch / "callbacks"
         command = compiler + flags + [
             "-I", str(root / "Sources"), str(test_source),
-            str(root / "Sources" / "UFEQ.c"), str(root / "Sources" / "UFRing.c"),
+            str(root / "Sources" / "CHEQ.c"), str(root / "Sources" / "CHRing.c"),
             "-lm", "-pthread", "-o", str(executable),
         ]
         subprocess.run(command, check=True, env=environment)

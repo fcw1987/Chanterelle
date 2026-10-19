@@ -4,7 +4,9 @@ Run `Tests/run_rc_tests.sh` from any directory. It runs the optimized portable
 EQ/ring tests, AddressSanitizer plus UndefinedBehaviorSanitizer, ThreadSanitizer,
 and all three variants of the actual-source callback tests. On macOS it also
 runs the extracted cleanup method against fake audio resources under normal
-compilation and AddressSanitizer plus UndefinedBehaviorSanitizer. Every phase
+compilation and AddressSanitizer plus UndefinedBehaviorSanitizer, and verifies
+installer refusal for running, legacy, unrecognized, or symlink app paths
+using temporary fixtures. Every phase
 gets its own log; any failed phase makes the overall runner fail. Unsupported
 sanitizers are reported as failures, not silently treated as passing.
 
@@ -15,7 +17,7 @@ percentiles and maximum, and clip/underrun/overrun counts. Scheduler interruptio
 can affect wall-time maxima. These results do not measure device latency or the
 complete app's CPU use and do not establish realtime scheduling guarantees.
 
-Results default to `Tests/results/<UTC timestamp>/`. Set `UF_RC_RESULTS_DIR` to
+Results default to `Tests/results/<UTC timestamp>/`. Set `CH_RC_RESULTS_DIR` to
 choose another directory. Sanitizer leak detection defaults to disabled; set
 `ASAN_OPTIONS` to override. `CC` selects the compiler. Python 3 is required for
 the extraction fixtures.
@@ -23,7 +25,7 @@ the extraction fixtures.
 After a native app build, include its off-state checks by passing the executable:
 
 ```sh
-UF_RC_APP_BINARY="$PWD/dist/UltraFineTune.app/Contents/MacOS/UltraFineTune" \
+CH_RC_APP_BINARY="$PWD/dist/Chanterelle.app/Contents/MacOS/Chanterelle" \
     Tests/run_rc_tests.sh
 ```
 

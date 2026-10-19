@@ -1,6 +1,6 @@
 .DS_Store
 .build.*
-.UltraFineTune-stage.*
+.Chanterelle-stage.*
 dist/
 *.dSYM/
 

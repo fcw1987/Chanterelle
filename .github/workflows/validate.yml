@@ -18,6 +18,7 @@ jobs:
           Tests/run_tests.sh
           python3 Tests/check_callbacks.py
           python3 Tests/check_lifecycle.py
-          dist/UltraFineTune.app/Contents/MacOS/UltraFineTune --self-test
+          python3 Tests/check_install_guards.py
+          dist/Chanterelle.app/Contents/MacOS/Chanterelle --self-test
       - name: Validate site and public source
         run: python3 Tests/check_publication.py

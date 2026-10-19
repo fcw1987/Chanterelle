@@ -4,7 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /** A physical output that Core Audio currently exposes. */
-@interface UFAudioDevice : NSObject
+@interface CHAudioDevice : NSObject
 @property(nonatomic, copy, readonly) NSString *uid;
 @property(nonatomic, copy, readonly) NSString *name;
 @property(nonatomic, readonly) BOOL isDefaultOutput;
@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
  Call lifecycle methods and read properties on the main thread.
  The engine never changes the Mac's default device or hardware volume.
  */
-@interface UFAudioEngine : NSObject
+@interface CHAudioEngine : NSObject
 @property(nonatomic, readonly, getter=isRunning) BOOL running;
 @property(nonatomic, readonly, getter=isProcessing) BOOL processing;
 @property(nonatomic, copy, readonly) NSString *statusText;
@@ -31,7 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 /** Invoked on the main thread when a running session stops unexpectedly. */
 @property(nonatomic, copy, nullable) void (^stateChanged)(NSError * _Nullable error);
 
-+ (NSArray<UFAudioDevice *> *)outputDevices;
++ (NSArray<CHAudioDevice *> *)outputDevices;
 + (nullable NSString *)defaultOutputDeviceUID;
 /** Read-only device/route/volume metadata; does not create a tap or audio unit. */
 + (NSDictionary *)hardwareSnapshot;

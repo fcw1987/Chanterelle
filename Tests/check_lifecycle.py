@@ -17,14 +17,14 @@ def main():
     parser.add_argument("--sanitize", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
-    source = (root / "Sources/UFAudioEngine.m").read_text()
+    source = (root / "Sources/CHAudioEngine.m").read_text()
     start = "- (void)finishWithError:(NSError *)failure notify:(BOOL)notify {"
     end = "- (void)stop {"
     if source.count(start) != 1 or source.count(end) != 1:
         raise SystemExit("The lifecycle extraction boundaries changed. Update the fixture.")
     method = source[source.index(start):source.index(end, source.index(start))]
     fixture = (root / "Tests/lifecycle_fixture.m").read_text()
-    marker = "/* UFAUDIO_TEARDOWN */"
+    marker = "/* CHAUDIO_TEARDOWN */"
     if fixture.count(marker) != 1:
         raise SystemExit("Expected exactly one teardown fixture marker.")
     flags = ["-std=gnu11", "-fobjc-arc", "-fblocks", "-Wall", "-Wextra", "-Werror", "-g"]
@@ -32,14 +32,14 @@ def main():
     environment = os.environ.copy()
     if args.sanitize:
         environment.setdefault("ASAN_OPTIONS", "detect_leaks=0")
-    with tempfile.TemporaryDirectory(prefix="ultrafine_lifecycle_") as directory:
+    with tempfile.TemporaryDirectory(prefix="chanterelle_lifecycle_") as directory:
         scratch = Path(directory)
         test_source = scratch / "lifecycle.m"
         test_source.write_text(fixture.replace(marker, method))
         executable = scratch / "lifecycle"
         command = shlex.split(os.environ.get("CC", "cc")) + flags + [
             "-I", str(root / "Sources"), str(test_source),
-            str(root / "Sources/UFEQ.c"), str(root / "Sources/UFRing.c"),
+            str(root / "Sources/CHEQ.c"), str(root / "Sources/CHRing.c"),
             "-framework", "Foundation", "-lm", "-o", str(executable),
         ]
         subprocess.run(command, check=True, env=environment)
