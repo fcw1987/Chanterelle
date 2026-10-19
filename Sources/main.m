@@ -1,21 +1,45 @@
 #import <AppKit/AppKit.h>
-#import "UFAudioEngine.h"
-#import "UFPresets.h"
+#import "CHAudioEngine.h"
+#import "CHPresets.h"
 #include <math.h>
 #include <unistd.h>
 #include <string.h>
 
-static NSString * const UFPreferencesKey = @"toneControls";
-static NSString * const UFMyPresetKey = @"myPreset";
-static NSString * const UFDeviceKey = @"selectedOutputUID";
+// Keep the original defaults keys and bundle domain so upgrades retain every saved setting.
+static NSString * const CHPreferencesKey = @"toneControls";
+static NSString * const CHMyPresetKey = @"myPreset";
+static NSString * const CHDeviceKey = @"selectedOutputUID";
 
-static NSTextField *UFLabel(NSString *text, CGFloat size, NSFontWeight weight) {
+// A template silhouette stays crisp and adapts to both menu bar appearances.
+static NSImage *CHMenuBarIcon(void) {
+    NSImage *image = [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        (void)rect;
+        [NSColor.blackColor setFill];
+        NSBezierPath *mushroom = [NSBezierPath bezierPath];
+        [mushroom moveToPoint:NSMakePoint(1.5, 10)];
+        [mushroom curveToPoint:NSMakePoint(9, 16) controlPoint1:NSMakePoint(2.5, 14) controlPoint2:NSMakePoint(5.5, 16)];
+        [mushroom curveToPoint:NSMakePoint(16.5, 10) controlPoint1:NSMakePoint(12.5, 16) controlPoint2:NSMakePoint(15.5, 14)];
+        [mushroom curveToPoint:NSMakePoint(10.25, 8) controlPoint1:NSMakePoint(15.5, 8.5) controlPoint2:NSMakePoint(12, 8)];
+        [mushroom curveToPoint:NSMakePoint(11, 2.25) controlPoint1:NSMakePoint(10, 6) controlPoint2:NSMakePoint(10.25, 3.5)];
+        [mushroom curveToPoint:NSMakePoint(7, 2.25) controlPoint1:NSMakePoint(10, 1.5) controlPoint2:NSMakePoint(8, 1.5)];
+        [mushroom curveToPoint:NSMakePoint(7.75, 8) controlPoint1:NSMakePoint(7.75, 3.5) controlPoint2:NSMakePoint(8, 6)];
+        [mushroom curveToPoint:NSMakePoint(1.5, 10) controlPoint1:NSMakePoint(6, 8) controlPoint2:NSMakePoint(2.5, 8.5)];
+        [mushroom closePath];
+        [mushroom fill];
+        return YES;
+    }];
+    image.template = YES;
+    image.accessibilityDescription = @"Chanterelle";
+    return image;
+}
+
+static NSTextField *CHLabel(NSString *text, CGFloat size, NSFontWeight weight) {
     NSTextField *label = [NSTextField labelWithString:text];
     label.font = [NSFont systemFontOfSize:size weight:weight];
     return label;
 }
 
-static NSStackView *UFStack(NSArray<NSView *> *views, NSUserInterfaceLayoutOrientation orientation, CGFloat spacing) {
+static NSStackView *CHStack(NSArray<NSView *> *views, NSUserInterfaceLayoutOrientation orientation, CGFloat spacing) {
     NSStackView *stack = [NSStackView stackViewWithViews:views];
     stack.orientation = orientation;
     stack.alignment = orientation == NSUserInterfaceLayoutOrientationVertical ? NSLayoutAttributeLeading : NSLayoutAttributeCenterY;
@@ -23,26 +47,26 @@ static NSStackView *UFStack(NSArray<NSView *> *views, NSUserInterfaceLayoutOrien
     return stack;
 }
 
-static NSView *UFSpacer(void) {
+static NSView *CHSpacer(void) {
     NSView *view = [NSView new];
     [view setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
     return view;
 }
 
-static float UFSafeControl(id value, float minimum, float maximum) {
+static float CHSafeControl(id value, float minimum, float maximum) {
     if (![value isKindOfClass:NSNumber.class]) return 0;
     float result = [value floatValue];
     return isfinite(result) ? fmaxf(minimum, fminf(maximum, result)) : 0;
 }
 
-@interface UFFlippedView : NSView
+@interface CHFlippedView : NSView
 @end
-@implementation UFFlippedView
+@implementation CHFlippedView
 - (BOOL)isFlipped { return YES; }
 @end
 
-@interface UFAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
-@property(nonatomic, strong) UFAudioEngine *engine;
+@interface CHAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
+@property(nonatomic, strong) CHAudioEngine *engine;
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) NSStatusItem *statusItem;
 @property(nonatomic, strong) NSPopUpButton *devicePicker;
@@ -55,7 +79,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 @property(nonatomic, strong) NSProgressIndicator *levelMeter;
 @property(nonatomic, strong) NSMutableArray<NSSlider *> *sliders;
 @property(nonatomic, strong) NSMutableArray<NSTextField *> *valueLabels;
-@property(nonatomic, strong) NSArray<UFAudioDevice *> *devices;
+@property(nonatomic, strong) NSArray<CHAudioDevice *> *devices;
 @property(nonatomic, strong) NSTimer *meterTimer;
 @property(nonatomic, copy) NSString *idleNote;
 @property(nonatomic) BOOL heardAudio;
@@ -73,32 +97,31 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 @property(nonatomic, copy) NSString *lastPresetName;
 @end
 
-@implementation UFAppDelegate
+@implementation CHAppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    self.engine = [UFAudioEngine new];
+    self.engine = [CHAudioEngine new];
     self.sliders = [NSMutableArray new];
     self.valueLabels = [NSMutableArray new];
     self.idleNote = @"Choose your output in Sound Settings, then start tuning. System audio access lets this app process playback locally in memory.";
-    __weak UFAppDelegate *weakSelf = self;
+    __weak CHAppDelegate *weakSelf = self;
     self.engine.stateChanged = ^(NSError *error) {
-        UFAppDelegate *strongSelf = weakSelf;
+        CHAppDelegate *strongSelf = weakSelf;
         if (!strongSelf) return;
         strongSelf.idleNote = error.localizedDescription ?: @"Tuning stopped. Normal playback has been restored.";
         [strongSelf refreshDevices:nil];
         [strongSelf updateStatus];
     };
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
-    NSImage *icon = [NSImage imageWithSystemSymbolName:@"slider.horizontal.3" accessibilityDescription:@"UltraFineTune"];
-    icon.template = YES;
+    NSImage *icon = CHMenuBarIcon();
     self.statusItem.button.image = icon;
-    if (!icon) self.statusItem.button.title = @"EQ";
-    self.statusItem.button.toolTip = @"UltraFineTune";
+    [self.statusItem.button setAccessibilityLabel:@"Chanterelle"];
+    self.statusItem.button.toolTip = @"Chanterelle";
     [self buildStatusMenu];
     NSMenu *mainMenu = [NSMenu new];
     NSMenuItem *appMenuItem = [NSMenuItem new];
     NSMenu *appMenu = [NSMenu new];
-    NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit UltraFineTune" action:@selector(quit:) keyEquivalent:@"q"];
+    NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit Chanterelle" action:@selector(quit:) keyEquivalent:@"q"];
     quitItem.target = self;
     NSMenuItem *openItem = [[NSMenuItem alloc] initWithTitle:@"Open Window" action:@selector(showWindow:) keyEquivalent:@"o"];
     openItem.target = self;
@@ -126,7 +149,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 540, 840)
         styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
         backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"UltraFineTune";
+    self.window.title = @"Chanterelle";
     self.window.delegate = self;
     self.window.releasedWhenClosed = NO;
     [self.window center];
@@ -138,11 +161,11 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     scroll.drawsBackground = NO;
     [container addSubview:scroll];
     [NSLayoutConstraint activateConstraints:@[[scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor], [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor], [scroll.topAnchor constraintEqualToAnchor:container.topAnchor], [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor]]];
-    NSView *content = [UFFlippedView new];
+    NSView *content = [CHFlippedView new];
     content.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.documentView = content;
     [content.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor].active = YES;
-    NSStackView *root = UFStack(@[], NSUserInterfaceLayoutOrientationVertical, 14);
+    NSStackView *root = CHStack(@[], NSUserInterfaceLayoutOrientationVertical, 14);
     root.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:root];
     [NSLayoutConstraint activateConstraints:@[
@@ -151,10 +174,10 @@ static float UFSafeControl(id value, float minimum, float maximum) {
         [root.topAnchor constraintEqualToAnchor:content.topAnchor constant:22],
         [root.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-24]
     ]];
-    NSTextField *title = UFLabel(@"UltraFineTune", 25, NSFontWeightSemibold);
-    NSTextField *subtitle = UFLabel(@"1.0.1  •  macOS system audio equalizer", 12, NSFontWeightRegular);
+    NSTextField *title = CHLabel(@"Chanterelle", 25, NSFontWeightSemibold);
+    NSTextField *subtitle = CHLabel(@"1.1.0  •  macOS system audio equalizer", 12, NSFontWeightRegular);
     subtitle.textColor = NSColor.secondaryLabelColor;
-    [root addArrangedSubview:UFStack(@[title, subtitle], NSUserInterfaceLayoutOrientationVertical, 5)];
+    [root addArrangedSubview:CHStack(@[title, subtitle], NSUserInterfaceLayoutOrientationVertical, 5)];
 
     self.devicePicker = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     self.devicePicker.target = self;
@@ -162,24 +185,24 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     [self.devicePicker setAccessibilityLabel:@"Audio output"];
     [self.devicePicker setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
     self.refreshButton = [NSButton buttonWithTitle:@"Refresh" target:self action:@selector(refreshDevices:)];
-    NSStackView *deviceRow = UFStack(@[self.devicePicker, self.refreshButton], NSUserInterfaceLayoutOrientationHorizontal, 8);
-    NSStackView *outputGroup = UFStack(@[UFLabel(@"Output", 12, NSFontWeightSemibold), deviceRow], NSUserInterfaceLayoutOrientationVertical, 6);
+    NSStackView *deviceRow = CHStack(@[self.devicePicker, self.refreshButton], NSUserInterfaceLayoutOrientationHorizontal, 8);
+    NSStackView *outputGroup = CHStack(@[CHLabel(@"Output", 12, NSFontWeightSemibold), deviceRow], NSUserInterfaceLayoutOrientationVertical, 6);
     [root addArrangedSubview:outputGroup];
     [outputGroup.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
     [deviceRow.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
 
     self.presetPicker = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    for (size_t i = 0; i < UF_PRESET_COUNT; i++) [self.presetPicker addItemWithTitle:@(UF_PRESETS[i].name)];
+    for (size_t i = 0; i < CH_PRESET_COUNT; i++) [self.presetPicker addItemWithTitle:@(CH_PRESETS[i].name)];
     [self.presetPicker addItemsWithTitles:@[@"My preset", @"Custom / modified"]];
     self.presetPicker.target = self;
     self.presetPicker.action = @selector(presetChanged:);
     [self.presetPicker setAccessibilityLabel:@"Tone preset"];
     self.presetPicker.autoenablesItems = NO;
     [self.presetPicker itemWithTitle:@"Custom / modified"].enabled = NO;
-    [self.presetPicker itemWithTitle:@"My preset"].enabled = [NSUserDefaults.standardUserDefaults arrayForKey:UFMyPresetKey].count == 4;
+    [self.presetPicker itemWithTitle:@"My preset"].enabled = [NSUserDefaults.standardUserDefaults arrayForKey:CHMyPresetKey].count == 4;
     NSButton *save = [NSButton buttonWithTitle:@"Save my preset" target:self action:@selector(savePreset:)];
-    NSStackView *presetRow = UFStack(@[self.presetPicker, save], NSUserInterfaceLayoutOrientationHorizontal, 8);
-    NSStackView *presetGroup = UFStack(@[UFLabel(@"Listening preset", 12, NSFontWeightSemibold), presetRow], NSUserInterfaceLayoutOrientationVertical, 6);
+    NSStackView *presetRow = CHStack(@[self.presetPicker, save], NSUserInterfaceLayoutOrientationHorizontal, 8);
+    NSStackView *presetGroup = CHStack(@[CHLabel(@"Listening preset", 12, NSFontWeightSemibold), presetRow], NSUserInterfaceLayoutOrientationVertical, 6);
     [root addArrangedSubview:presetGroup];
     [presetGroup.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
     [presetRow.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
@@ -188,7 +211,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     self.presetNote.textColor = NSColor.secondaryLabelColor;
     [root addArrangedSubview:self.presetNote];
     [self.presetNote.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
-    [root addArrangedSubview:UFLabel(@"Tone · −6 to +6 dB", 12, NSFontWeightSemibold)];
+    [root addArrangedSubview:CHLabel(@"Tone · −6 to +6 dB", 12, NSFontWeightSemibold)];
 
     [self addSliderTo:root title:@"Bass" note:@"150 Hz shelf · left: lighter bass / right: more warmth" minimum:-6 maximum:6 index:0];
     [self addSliderTo:root title:@"Mids" note:@"900 Hz · left: less body / right: more voice presence" minimum:-6 maximum:6 index:1];
@@ -203,9 +226,9 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     comparisonNote.textColor = NSColor.secondaryLabelColor;
     [root addArrangedSubview:comparisonNote];
     [comparisonNote.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
-    self.technicalLabel = UFLabel(@"Start is always manual. No microphone or screen capture.", 10, NSFontWeightRegular);
+    self.technicalLabel = CHLabel(@"Start is always manual. No microphone or screen capture.", 10, NSFontWeightRegular);
     self.technicalLabel.textColor = NSColor.secondaryLabelColor;
-    NSStackView *advanced = UFStack(@[self.technicalLabel], NSUserInterfaceLayoutOrientationVertical, 4);
+    NSStackView *advanced = CHStack(@[self.technicalLabel], NSUserInterfaceLayoutOrientationVertical, 4);
     NSButton *details = [NSButton checkboxWithTitle:@"Show audio details" target:self action:@selector(toggleDetails:)];
     details.state = NSControlStateValueOff;
     advanced.hidden = YES;
@@ -220,15 +243,15 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     self.levelMeter.minValue = 0;
     self.levelMeter.maxValue = 1;
     [self.levelMeter setAccessibilityLabel:@"Output signal level"];
-    NSTextField *levelLabel = UFLabel(@"Signal", 11, NSFontWeightRegular);
+    NSTextField *levelLabel = CHLabel(@"Signal", 11, NSFontWeightRegular);
     levelLabel.textColor = NSColor.secondaryLabelColor;
-    self.meterValue = UFLabel(@"No signal", 11, NSFontWeightRegular);
+    self.meterValue = CHLabel(@"No signal", 11, NSFontWeightRegular);
     [self.meterValue.widthAnchor constraintEqualToConstant:88].active = YES;
-    NSStackView *meterRow = UFStack(@[levelLabel, self.levelMeter, self.meterValue], NSUserInterfaceLayoutOrientationHorizontal, 10);
+    NSStackView *meterRow = CHStack(@[levelLabel, self.levelMeter, self.meterValue], NSUserInterfaceLayoutOrientationHorizontal, 10);
     [root addArrangedSubview:meterRow];
     [meterRow.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
 
-    self.stateLabel = UFLabel(@"Ready when you are", 13, NSFontWeightSemibold);
+    self.stateLabel = CHLabel(@"Ready when you are", 13, NSFontWeightSemibold);
     self.detailLabel = [NSTextField wrappingLabelWithString:self.idleNote];
     self.detailLabel.font = [NSFont systemFontOfSize:11];
     self.detailLabel.textColor = NSColor.secondaryLabelColor;
@@ -244,7 +267,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     self.startButton.keyEquivalent = @"\r";
     self.resetButton = [NSButton buttonWithTitle:@"Flat EQ" target:self action:@selector(resetSettings:)];
     self.resetButton.toolTip = @"Set all tone gains and trim to zero. Keeps your saved preset and selected output; processing stays in its current state.";
-    NSStackView *actions = UFStack(@[soundSettings, self.resetButton, UFSpacer(), self.startButton], NSUserInterfaceLayoutOrientationHorizontal, 8);
+    NSStackView *actions = CHStack(@[soundSettings, self.resetButton, CHSpacer(), self.startButton], NSUserInterfaceLayoutOrientationHorizontal, 8);
     [root addArrangedSubview:actions];
     [actions.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
 
@@ -255,12 +278,12 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 }
 
 - (void)addSliderTo:(NSStackView *)root title:(NSString *)title note:(NSString *)note minimum:(double)minimum maximum:(double)maximum index:(NSInteger)index {
-    NSTextField *name = UFLabel(title, 13, NSFontWeightMedium);
-    NSTextField *value = UFLabel(@"0.0 dB", 12, NSFontWeightRegular);
+    NSTextField *name = CHLabel(title, 13, NSFontWeightMedium);
+    NSTextField *value = CHLabel(@"0.0 dB", 12, NSFontWeightRegular);
     value.font = [NSFont monospacedDigitSystemFontOfSize:12 weight:NSFontWeightRegular];
     value.alignment = NSTextAlignmentRight;
     [value.widthAnchor constraintEqualToConstant:64].active = YES;
-    NSStackView *row = UFStack(@[name, UFSpacer(), value], NSUserInterfaceLayoutOrientationHorizontal, 8);
+    NSStackView *row = CHStack(@[name, CHSpacer(), value], NSUserInterfaceLayoutOrientationHorizontal, 8);
     NSSlider *slider = [NSSlider sliderWithValue:0 minValue:minimum maxValue:maximum target:self action:@selector(sliderChanged:)];
     slider.continuous = YES;
     slider.tag = index;
@@ -272,7 +295,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     NSTextField *description = [NSTextField wrappingLabelWithString:note];
     description.font = [NSFont systemFontOfSize:10];
     description.textColor = NSColor.secondaryLabelColor;
-    NSStackView *group = UFStack(@[row, slider, description], NSUserInterfaceLayoutOrientationVertical, 3);
+    NSStackView *group = CHStack(@[row, slider, description], NSUserInterfaceLayoutOrientationVertical, 3);
     [root addArrangedSubview:group];
     [group.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
     [description.widthAnchor constraintEqualToAnchor:root.widthAnchor].active = YES;
@@ -283,9 +306,9 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 }
 
 - (void)restoreControls {
-    NSArray *saved = [NSUserDefaults.standardUserDefaults arrayForKey:UFPreferencesKey];
+    NSArray *saved = [NSUserDefaults.standardUserDefaults arrayForKey:CHPreferencesKey];
     if (saved.count == 4) {
-        for (NSUInteger i = 0; i < 4; i++) self.sliders[i].floatValue = UFSafeControl(saved[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
+        for (NSUInteger i = 0; i < 4; i++) self.sliders[i].floatValue = CHSafeControl(saved[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
     }
     // Starting is always explicit, and bypass does not persist across launches.
     self.bypassButton.state = NSControlStateValueOff;
@@ -298,11 +321,11 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 
 - (NSDictionary<NSString *, NSArray<NSNumber *> *> *)presets {
     NSMutableDictionary *result = [NSMutableDictionary new];
-    for (size_t i = 0; i < UF_PRESET_COUNT; i++) {
-        const UFPreset *preset = &UF_PRESETS[i];
+    for (size_t i = 0; i < CH_PRESET_COUNT; i++) {
+        const CHPreset *preset = &CH_PRESETS[i];
         result[@(preset->name)] = @[@(preset->bass), @(preset->mid), @(preset->treble), @(preset->trim)];
     }
-    NSArray *custom = [NSUserDefaults.standardUserDefaults arrayForKey:UFMyPresetKey];
+    NSArray *custom = [NSUserDefaults.standardUserDefaults arrayForKey:CHMyPresetKey];
     if (custom.count == 4) result[@"My preset"] = custom;
     return result;
 }
@@ -315,7 +338,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
         if (values.count != 4) continue;
         BOOL match = YES;
         for (NSUInteger i = 0; i < 4; i++) {
-            float expected = UFSafeControl(values[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
+            float expected = CHSafeControl(values[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
             if (fabsf([current[i] floatValue] - expected) > 0.025f) match = NO;
         }
         if (match) { [self.presetPicker selectItemWithTitle:name]; self.lastPresetName = name; [self updatePresetNote]; return; }
@@ -331,7 +354,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
         float value = self.sliders[i].floatValue;
         self.valueLabels[i].stringValue = fabsf(value) < 0.05f ? @"0.0 dB" : [NSString stringWithFormat:@"%+.1f dB", value];
     }
-    if (!self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:[self controlValues] forKey:UFPreferencesKey];
+    if (!self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:[self controlValues] forKey:CHPreferencesKey];
 }
 
 - (void)sliderChanged:(NSSlider *)sender { [self applyControls]; [self updatePresetTitle]; [self updateStatus]; }
@@ -339,32 +362,33 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 - (void)presetChanged:(NSPopUpButton *)sender {
     NSArray *values = [self presets][sender.titleOfSelectedItem];
     if (values.count != 4) return;
-    for (NSUInteger i = 0; i < 4; i++) self.sliders[i].floatValue = UFSafeControl(values[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
+    for (NSUInteger i = 0; i < 4; i++) self.sliders[i].floatValue = CHSafeControl(values[i], i == 3 ? -12 : -6, i == 3 ? 0 : 6);
     self.lastPresetName = sender.titleOfSelectedItem;
     [self applyControls]; [self updatePresetTitle]; [self updateStatus];
 }
 - (void)savePreset:(id)sender {
-    if (!self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:[self controlValues] forKey:UFMyPresetKey];
+    if (!self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:[self controlValues] forKey:CHMyPresetKey];
     [self.presetPicker itemWithTitle:@"My preset"].enabled = YES;
     [self.presetPicker selectItemWithTitle:@"My preset"];
 }
 
 - (void)refreshDevices:(id)sender {
     if (self.engine.running) return;
-    NSString *preferredUID = self.devicePicker.selectedItem.representedObject ?: [NSUserDefaults.standardUserDefaults stringForKey:UFDeviceKey];
-    self.devices = [UFAudioEngine outputDevices];
+    NSString *preferredUID = self.devicePicker.selectedItem.representedObject ?: [NSUserDefaults.standardUserDefaults stringForKey:CHDeviceKey];
+    self.devices = [CHAudioEngine outputDevices];
     [self.devicePicker removeAllItems];
     NSInteger chosen = -1;
     NSInteger likelyLG = -1;
     NSInteger currentDefault = -1;
     for (NSUInteger i = 0; i < self.devices.count; i++) {
-        UFAudioDevice *device = self.devices[i];
+        CHAudioDevice *device = self.devices[i];
         NSString *title = device.isDefaultOutput ? [device.name stringByAppendingString:@" (current output)"] : device.name;
         if (!device.supportsStereo) title = [title stringByAppendingString:@" — unsupported layout"];
         [self.devicePicker addItemWithTitle:title];
         self.devicePicker.lastItem.representedObject = device.uid;
         self.devicePicker.lastItem.enabled = device.supportsStereo;
         if (device.supportsStereo && [device.uid isEqualToString:preferredUID]) chosen = (NSInteger)i;
+        // UltraFine is the real LG hardware name, required to preserve output selection.
         if (device.supportsStereo && ([device.name localizedCaseInsensitiveContainsString:@"UltraFine"] || [device.name localizedCaseInsensitiveContainsString:@"LG "])) likelyLG = (NSInteger)i;
         if (device.supportsStereo && device.isDefaultOutput) currentDefault = (NSInteger)i;
     }
@@ -386,7 +410,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 
 - (void)deviceChanged:(id)sender {
     NSString *uid = self.devicePicker.selectedItem.representedObject;
-    if (uid && !self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:uid forKey:UFDeviceKey];
+    if (uid && !self.smokeDirectory) [NSUserDefaults.standardUserDefaults setObject:uid forKey:CHDeviceKey];
     [self updateStatus];
 }
 
@@ -426,7 +450,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     BOOL running = self.engine.running;
     self.startButton.title = running ? @"Stop tuning" : @"Start tuning";
     NSInteger selectedIndex = self.devicePicker.indexOfSelectedItem;
-    UFAudioDevice *selected = selectedIndex >= 0 && (NSUInteger)selectedIndex < self.devices.count ? self.devices[(NSUInteger)selectedIndex] : nil;
+    CHAudioDevice *selected = selectedIndex >= 0 && (NSUInteger)selectedIndex < self.devices.count ? self.devices[(NSUInteger)selectedIndex] : nil;
     self.startButton.enabled = running || (selected && selected.supportsStereo && selected.isDefaultOutput);
     self.startButton.toolTip = self.startButton.enabled ? @"Start requires system playback capture permission." : @"Select this output in macOS Sound Settings first.";
     self.devicePicker.enabled = !running && self.devices.count > 0;
@@ -460,7 +484,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     self.menuToggle.enabled = self.startButton.enabled;
     self.menuBypass.state = self.bypassButton.state;
     for (NSMenuItem *item in [self.statusMenu itemWithTitle:@"Listening presets"].submenu.itemArray) item.state = [item.title isEqualToString:self.presetPicker.titleOfSelectedItem] ? NSControlStateValueOn : NSControlStateValueOff;
-    self.statusItem.button.toolTip = self.engine.processing ? @"UltraFineTune is processing audio" : (running ? @"UltraFineTune is waiting for audio" : @"UltraFineTune is off");
+    self.statusItem.button.toolTip = self.engine.processing ? @"Chanterelle is processing audio" : (running ? @"Chanterelle is waiting for audio" : @"Chanterelle is off");
 }
 
 - (void)showWindow:(id)sender {
@@ -482,14 +506,14 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     }
     NSMenuItem *presets = [[NSMenuItem alloc] initWithTitle:@"Listening presets" action:nil keyEquivalent:@""];
     presets.submenu = [NSMenu new];
-    for (size_t i = 0; i < UF_PRESET_COUNT; i++) {
-        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@(UF_PRESETS[i].name) action:@selector(menuPreset:) keyEquivalent:@""];
+    for (size_t i = 0; i < CH_PRESET_COUNT; i++) {
+        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@(CH_PRESETS[i].name) action:@selector(menuPreset:) keyEquivalent:@""];
         item.target = self;
         [presets.submenu addItem:item];
     }
     [self.statusMenu addItem:presets];
     [self.statusMenu addItem:NSMenuItem.separatorItem];
-    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit UltraFineTune" action:@selector(quit:) keyEquivalent:@"q"];
+    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit Chanterelle" action:@selector(quit:) keyEquivalent:@"q"];
     quit.target = self;
     [self.statusMenu addItem:quit];
     // AppKit owns click handling for both mouse buttons and keyboard activation.
@@ -509,8 +533,8 @@ static float UFSafeControl(id value, float minimum, float maximum) {
 }
 - (void)updatePresetNote {
     NSString *name = self.presetPicker.titleOfSelectedItem;
-    for (size_t i = 0; i < UF_PRESET_COUNT; i++) if ([name isEqualToString:@(UF_PRESETS[i].name)]) {
-        self.presetNote.stringValue = [@(UF_PRESETS[i].note) stringByAppendingString:@" · A starting point, not speaker calibration."];
+    for (size_t i = 0; i < CH_PRESET_COUNT; i++) if ([name isEqualToString:@(CH_PRESETS[i].name)]) {
+        self.presetNote.stringValue = [@(CH_PRESETS[i].note) stringByAppendingString:@" · A starting point, not speaker calibration."];
         return;
     }
     self.presetNote.stringValue = [name isEqualToString:@"My preset"] ? @"Your saved tone and trim settings." : [NSString stringWithFormat:@"Modified from %@ · Save my preset to keep this curve.", self.lastPresetName ?: @"Neutral"];
@@ -548,7 +572,23 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     NSView *content = self.window.contentView;
     NSBitmapImageRep *bitmap = [content bitmapImageRepForCachingDisplayInRect:content.bounds];
     [content cacheDisplayInRect:content.bounds toBitmapImageRep:bitmap];
-    NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    // Cache display omits the window's backing fill; render it into an opaque
+    // bitmap so the exported native controls remain legible on the website.
+    NSBitmapImageRep *snapshot = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+        pixelsWide:bitmap.pixelsWide pixelsHigh:bitmap.pixelsHigh bitsPerSample:8
+        samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSCalibratedRGBColorSpace
+        bytesPerRow:0 bitsPerPixel:0];
+    snapshot.size = content.bounds.size;
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:snapshot];
+    [[NSColor.windowBackgroundColor colorWithAlphaComponent:1.0] setFill];
+    NSRectFillUsingOperation(content.bounds, NSCompositingOperationCopy);
+    NSImage *cachedImage = [[NSImage alloc] initWithSize:content.bounds.size];
+    [cachedImage addRepresentation:bitmap];
+    [cachedImage drawInRect:content.bounds fromRect:NSZeroRect
+        operation:NSCompositingOperationSourceOver fraction:1.0 respectFlipped:NO hints:nil];
+    [NSGraphicsContext restoreGraphicsState];
+    NSData *png = [snapshot representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
     NSError *failure = nil;
     BOOL directoryOK = [NSFileManager.defaultManager createDirectoryAtPath:self.smokeDirectory withIntermediateDirectories:YES attributes:nil error:&failure];
     BOOL imageOK = directoryOK && [png writeToFile:[self.smokeDirectory stringByAppendingPathComponent:@"off-state-ui.png"] options:NSDataWritingAtomic error:&failure];
@@ -580,7 +620,7 @@ static float UFSafeControl(id value, float minimum, float maximum) {
     [json writeToFile:[self.smokeDirectory stringByAppendingPathComponent:@"ui-smoke.json"] atomically:YES];
     printf("%s\n", [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding].UTF8String);
     self.smokeFailed = !imageOK || !footerVisible || !off || !menuWired || !reopened || !presetApplied || !comparisonWorks || !flatWorks || !smallWindowWorks;
-    if (!getenv("UF_UI_SMOKE_HOLD")) [NSApp terminate:nil];
+    if (!getenv("CH_UI_SMOKE_HOLD")) [NSApp terminate:nil];
 }
 
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag { [self showWindow:nil]; return YES; }
@@ -598,15 +638,15 @@ int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc == 2 && (strcmp(argv[1], "--diagnostics") == 0 || strcmp(argv[1], "--self-test") == 0)) {
             BOOL testing = strcmp(argv[1], "--self-test") == 0;
-            NSDictionary *result = testing ? [UFAudioEngine offStateSelfTest] : [UFAudioEngine hardwareSnapshot];
+            NSDictionary *result = testing ? [CHAudioEngine offStateSelfTest] : [CHAudioEngine hardwareSnapshot];
             NSMutableDictionary *report = [result mutableCopy];
-            report[@"version"] = @"1.0.1"; report[@"build"] = @"4"; report[@"releaseChannel"] = @"stable";
+            report[@"version"] = @"1.1.0"; report[@"build"] = @"5"; report[@"releaseChannel"] = @"stable";
             NSData *json = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
             printf("%s\n", [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding].UTF8String);
             return testing && ![result[@"passed"] boolValue] ? 1 : 0;
         }
         NSString *smokeDirectory = argc == 3 && strcmp(argv[1], "--ui-smoke-test") == 0 ? [NSString stringWithUTF8String:argv[2]] : nil;
-        if (argc > 1 && !smokeDirectory) { fprintf(stderr, "Usage: UltraFineTune [--diagnostics | --self-test | --ui-smoke-test directory]\n"); return 64; }
+        if (argc > 1 && !smokeDirectory) { fprintf(stderr, "Usage: Chanterelle [--diagnostics | --self-test | --ui-smoke-test directory]\n"); return 64; }
         NSApplication *app = NSApplication.sharedApplication;
         NSString *bundleID = NSBundle.mainBundle.bundleIdentifier;
         if (bundleID && !smokeDirectory) {
@@ -618,7 +658,7 @@ int main(int argc, const char *argv[]) {
             }
         }
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
-        __attribute__((objc_precise_lifetime)) UFAppDelegate *delegate = [UFAppDelegate new];
+        __attribute__((objc_precise_lifetime)) CHAppDelegate *delegate = [CHAppDelegate new];
         delegate.smokeDirectory = smokeDirectory;
         app.delegate = delegate;
         [app run];

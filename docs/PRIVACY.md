@@ -1,12 +1,12 @@
 # Privacy
 
-UltraFineTune processes captured system playback locally in memory. The current implementation does not save audio recordings, transmit audio over a network, include analytics or telemetry, or use microphone or screen capture APIs. The website contains no scripts, tracking, remote assets, or embedded services.
+Chanterelle processes captured system playback locally in memory. The current implementation does not save audio recordings, transmit audio over a network, include analytics or telemetry, or use microphone or screen capture APIs. The website contains no scripts, tracking, remote assets, or embedded services.
 
 ## Permission
 
 Core Audio process taps require macOS system audio capture permission. The app’s `NSAudioCaptureUsageDescription` explains the local EQ purpose. Capture starts only after you manually click Start tuning; every launch begins with tuning off. System playback capture can include audio from other running apps. Consider that scope when deciding whether to grant permission.
 
-A stereo tap excludes UltraFineTune’s own playback to avoid recapturing its processed output. A private aggregate receives captured audio; a separate output Audio Unit sends the result to the selected physical device. The implementation does not activate the display microphone.
+A stereo tap excludes Chanterelle’s own playback to avoid recapturing its processed output. A private aggregate receives captured audio; a separate output Audio Unit sends the result to the selected physical device. The implementation does not activate the display microphone.
 
 ## Local data
 

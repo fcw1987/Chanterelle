@@ -1,8 +1,8 @@
-# Use UltraFineTune
+# Use Chanterelle
 
 ## Start
 
-Select the LG UltraFine as your default output in macOS Sound Settings, then select the same output in the app. Start tuning manually and allow system audio capture when macOS requests it. If permission was denied, enable the relevant audio recording permission in **System Settings → Privacy & Security**, then quit and reopen the app. The exact settings label can vary by macOS version.
+Select the LG display speakers as your default output in macOS Sound Settings, then select the same output in the app. Start tuning manually and allow system audio capture when macOS requests it. If permission was denied, enable the relevant audio recording permission in **System Settings → Privacy & Security**, then quit and reopen the app. The exact settings label can vary by macOS version.
 
 Original playback remains audible while the engine waits for a working capture signal. **Waiting for audio** becomes **Tuning your audio** when capture and playback are ready. Extended silence can return the engine to waiting until audio resumes.
 

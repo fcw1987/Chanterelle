@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 600" fill="none">
+  <title>A chanterelle on the forest floor</title>
+  <desc>Hand-drawn golden chanterelle with a wavy funnel cap, branching ridges and a curved stem, surrounded by fern fronds.</desc>
+  <path d="M65 460c52-36 134-55 234-52 110 2 205 28 275 64" stroke="#436454" stroke-width="1.5"/>
+  <path d="M91 494c69-26 153-30 228-24 77 6 142 1 214-18M157 530c97-15 212-7 311-22" stroke="#436454" stroke-width="1.5"/>
+  <g stroke="#62816A" stroke-width="2" stroke-linecap="round">
+    <path d="M101 459C96 361 60 283 34 245m59 158-37-19m33-3 16-35m-25 13-38-16m32-8 13-39m-25 13-30-12m22-3 8-31m472 221c5-95 34-152 60-197m-52 150 36-23m-31 0-17-33m27 7 30-21m-19-3-13-30m24 7 19-16"/>
+  </g>
+  <path d="M255 453c29-70 42-160 34-256l92-16c-15 132-8 202 15 280 10 29-24 49-72 46-49-3-81-22-69-54Z" fill="#F1B858"/>
+  <path d="M296 255c6 72-5 146-25 207m75-216c-3 91 5 155 27 220" stroke="#D58C2E" stroke-width="8" stroke-linecap="round"/>
+  <path d="M133 161c21-40 58-6 97-30 40-27 52-70 98-59 47 12 61 47 111 40 43-7 46 42 72 54 44 24 38 69-1 90-71 40-127 49-184 84-44-32-126-43-185-80-47-30-46-62-8-99Z" fill="#D98D2E"/>
+  <path d="M135 161c24-28 55 4 96-21 44-26 59-61 99-50 47 13 59 47 112 39 35-5 40 36 66 52 17 11 25 24 23 40-36 23-118 34-189 38-87 5-169-22-206-49-9-16-10-33-1-49Z" fill="#F6BC5B"/>
+  <path d="M145 185c32 5 79 47 180 45 105-2 145-51 186-45 8 41-88 87-180 90-85 3-189-47-186-90Z" fill="#FFDA8B"/>
+  <path d="M213 160c40 6 72 32 119 30 55-2 80-29 114-32-30 39-73 59-116 61-46 1-87-23-117-59Z" fill="#B87327"/>
+  <path d="M233 167c33 7 58 23 98 21 36-1 64-17 92-23" stroke="#E6A240" stroke-width="6" stroke-linecap="round"/>
+  <g stroke="#BB762B" stroke-width="7" stroke-linecap="round"><path d="m164 246 166 80m-108-67 113 65m-55-58 60 57m-19-52 22 48m34-52-26 53m83-64-78 66m129-88-121 86m154-107L361 310"/></g>
+  <path d="M138 173c16-24 43-4 79-18m48-39c15-14 30-21 43-16m149 47c11 6 14 16 25 26" stroke="#FFE6AE" stroke-width="9" stroke-linecap="round"/>
+  <g stroke="#A9AD79" stroke-width="2" stroke-linecap="round"><path d="m179 480 30-6m203 26 25-5m-221-56 15 5m233-4 24 5m-335 62 24 2"/></g>
+</svg>

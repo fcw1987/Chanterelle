@@ -1,10 +1,10 @@
-#include "UFRing.h"
+#include "CHRing.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 
-struct UFRing {
+struct CHRing {
     float *left;
     float *right;
     size_t capacity;
@@ -25,10 +25,10 @@ static void silence(float *left, size_t ls, float *right, size_t rs, size_t fram
     for (size_t i = 0; i < frames; ++i) { left[i * ls] = 0; right[i * rs] = 0; }
 }
 
-UFRing *ufring_create(size_t capacity, size_t target) {
+CHRing *chring_create(size_t capacity, size_t target) {
     if (capacity < 16 || capacity > (1u << 20) || (capacity & (capacity - 1)) ||
         target < 4 || target >= capacity / 2) return NULL;
-    UFRing *ring = calloc(1, sizeof(*ring));
+    CHRing *ring = calloc(1, sizeof(*ring));
     if (!ring) return NULL;
     atomic_init(&ring->read_index, 0);
     atomic_init(&ring->write_index, 0);
@@ -40,19 +40,19 @@ UFRing *ufring_create(size_t capacity, size_t target) {
     }
     ring->left = calloc(capacity, sizeof(float));
     ring->right = calloc(capacity, sizeof(float));
-    if (!ring->left || !ring->right) { ufring_destroy(ring); return NULL; }
+    if (!ring->left || !ring->right) { chring_destroy(ring); return NULL; }
     ring->capacity = capacity;
     ring->mask = capacity - 1;
     ring->target = target;
     return ring;
 }
 
-void ufring_destroy(UFRing *ring) {
+void chring_destroy(CHRing *ring) {
     if (!ring) return;
     free(ring->left); free(ring->right); free(ring);
 }
 
-size_t ufring_write_stereo(UFRing *ring, const float *left, size_t ls,
+size_t chring_write_stereo(CHRing *ring, const float *left, size_t ls,
                            const float *right, size_t rs, size_t frames) {
     if (!ring || !left || !right || !ls || !rs) return 0;
     uint64_t write = atomic_load_explicit(&ring->write_index, memory_order_relaxed);
@@ -72,7 +72,7 @@ size_t ufring_write_stereo(UFRing *ring, const float *left, size_t ls,
     return accepted;
 }
 
-size_t ufring_read_stereo(UFRing *ring, float *left, size_t ls,
+size_t chring_read_stereo(CHRing *ring, float *left, size_t ls,
                           float *right, size_t rs, size_t frames) {
     if (!left || !right || !ls || !rs) return 0;
     if (!ring || frames > ring->capacity - ring->target - 2) {
@@ -136,7 +136,7 @@ size_t ufring_read_stereo(UFRing *ring, float *left, size_t ls,
     return produced;
 }
 
-void ufring_reset_consumer(UFRing *ring) {
+void chring_reset_consumer(CHRing *ring) {
     if (!ring) return;
     uint64_t write = atomic_load_explicit(&ring->write_index, memory_order_acquire);
     atomic_store_explicit(&ring->read_index, write, memory_order_release);
@@ -145,16 +145,16 @@ void ufring_reset_consumer(UFRing *ring) {
     ring->primed = false;
 }
 
-size_t ufring_available(const UFRing *ring) {
+size_t chring_available(const CHRing *ring) {
     if (!ring) return 0;
     uint64_t read = atomic_load_explicit(&ring->read_index, memory_order_acquire);
     uint64_t write = atomic_load_explicit(&ring->write_index, memory_order_acquire);
     uint64_t count = write - read;
     return count <= ring->capacity ? (size_t)count : ring->capacity;
 }
-uint64_t ufring_underruns(const UFRing *ring) {
+uint64_t chring_underruns(const CHRing *ring) {
     return ring ? atomic_load_explicit(&ring->underruns, memory_order_relaxed) : 0;
 }
-uint64_t ufring_overruns(const UFRing *ring) {
+uint64_t chring_overruns(const CHRing *ring) {
     return ring ? atomic_load_explicit(&ring->overruns, memory_order_relaxed) : 0;
 }

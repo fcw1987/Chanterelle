@@ -20,6 +20,6 @@ Version 1.0.1 (build 4), arm64, macOS 14.2+, was archived using the shared Xcode
 - The extracted signed app's `--self-test` reported version 1.0.1, build 4, passed, and no audio resources created.
 - `Tests/check_publication.py` passed local HTML-link and public-source checks.
 
-Release asset: `UltraFineTune-1.0.1-macos-arm64.zip`. SHA-256: `a18f78f999c0380abc834bd80e978d581df5c62343e0f106265d86011d547348`. Signed code CDHash: `1e7352916a004c583cb9f76a8ab9879a45cc7511`.
+Historical 1.0.1 release ZIP SHA-256: `a18f78f999c0380abc834bd80e978d581df5c62343e0f106265d86011d547348`. Signed code CDHash: `1e7352916a004c583cb9f76a8ab9879a45cc7511`.
 
 These checks establish distribution signature, notarization ticket, Gatekeeper assessment, and off-state behavior. Live process taps under hardened runtime, capture permission, normal quarantined first-open behavior, audible playback, sustained playback, latency, and hardware recovery remain pending. The DSP and audio engine code are unchanged from 1.0.0; prior source fixtures do not establish live acceptance. The original 1.0.0 tag and release assets are preserved.

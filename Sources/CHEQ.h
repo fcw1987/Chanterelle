@@ -1,5 +1,5 @@
-#ifndef UFEQ_H
-#define UFEQ_H
+#ifndef CHEQ_H
+#define CHEQ_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-typedef struct UFEQ UFEQ;
+typedef struct CHEQ CHEQ;
 
 typedef struct {
     /* Linear amplitude, with a 300 ms peak decay. Input can exceed 1. */
@@ -21,7 +21,7 @@ typedef struct {
     uint64_t clipped_samples;
     /* Nonfinite input or arithmetic results replaced with silence. */
     uint64_t invalid_samples;
-} UFEQMeters;
+} CHEQMeters;
 
 /*
  * Creates a stereo equalizer for an immutable sample rate in [8000, 384000].
@@ -31,10 +31,10 @@ typedef struct {
  * The initial state is flat, 0 dB trim, and tone processing enabled.
  * Recreate the object while audio is stopped when the sample rate changes.
  */
-UFEQ *ufeq_create(double sampleRate);
+CHEQ *cheq_create(double sampleRate);
 
 /* The caller must stop all processing, setters, and readers before destroying. */
-void ufeq_destroy(UFEQ *eq);
+void cheq_destroy(CHEQ *eq);
 
 /*
  * Thread safe control publication. Call from a control thread, not an audio
@@ -57,7 +57,7 @@ void ufeq_destroy(UFEQ *eq);
  * or intersample peak protection. A final sample clamp prevents values
  * outside [-1, 1]. Clamp events are reported by the meters.
  */
-void ufeq_set_controls(UFEQ *eq, float bass, float mid, float treble,
+void cheq_set_controls(CHEQ *eq, float bass, float mid, float treble,
                       float trim, bool bypass);
 
 /*
@@ -76,7 +76,7 @@ void ufeq_set_controls(UFEQ *eq, float bass, float mid, float treble,
  * count is always a no op. Buffers must contain the requested frame count.
  * Nonfinite samples become zero before reaching the filters.
  */
-void ufeq_process_stereo(UFEQ *eq,
+void cheq_process_stereo(CHEQ *eq,
                         const float *inL, size_t inLStride,
                         const float *inR, size_t inRStride,
                         float *outL, size_t outLStride,
@@ -88,11 +88,11 @@ void ufeq_process_stereo(UFEQ *eq,
  * audio blocks. Callers do not have to synchronize with audio processing.
  * A null object produces zero values. A null destination is ignored.
  */
-void ufeq_get_meters(const UFEQ *eq, UFEQMeters *meters);
+void cheq_get_meters(const CHEQ *eq, CHEQMeters *meters);
 
 /* Convenience accessors for the combined output peak and safety clamp count. */
-float ufeq_peak(const UFEQ *eq);
-uint64_t ufeq_clip_count(const UFEQ *eq);
+float cheq_peak(const CHEQ *eq);
+uint64_t cheq_clip_count(const CHEQ *eq);
 
 #ifdef __cplusplus
 }

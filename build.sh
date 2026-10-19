@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_NAME="UltraFineTune"
-EXECUTABLE_NAME="UltraFineTune"
+APP_NAME="Chanterelle"
+EXECUTABLE_NAME="Chanterelle"
+# Compatibility: retain the original bundle/defaults domain and detect old installations safely.
 BUNDLE_IDENTIFIER="local.ultrafinetune.app"
+LEGACY_APP_NAME="UltraFineTune"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 BUILD_TEMP=""
 PUBLISH_TEMP=""
@@ -19,7 +21,7 @@ usage() {
 Usage: bash build.sh [--install] [--run] [--run-local] [--output-dir path]
                      [--hardened-runtime | --release-sign-identity identity]
 
-No options    Build and sign dist/UltraFineTune.app.
+No options    Build and sign dist/Chanterelle.app.
 --install     Also install into your Applications folder.
 --run         Also install and open the app.
 --run-local   Open the workspace app without installing.
@@ -81,13 +83,13 @@ done
 
 PLATFORM="$(uname -s)"
 [[ "$PLATFORM" == "Darwin" ]] ||
-    fail "UltraFineTune must be built on macOS 14.2 or later. This machine is running $PLATFORM."
+    fail "Chanterelle must be built on macOS 14.2 or later. This machine is running $PLATFORM."
 
 MACOS_VERSION="$(/usr/bin/sw_vers -productVersion)"
 IFS=. read -r MACOS_MAJOR MACOS_MINOR MACOS_PATCH <<< "$MACOS_VERSION"
 MACOS_MINOR="${MACOS_MINOR:-0}"
 if (( MACOS_MAJOR < 14 || (MACOS_MAJOR == 14 && MACOS_MINOR < 2) )); then
-    fail "UltraFineTune requires macOS 14.2 or later. This Mac is running $MACOS_VERSION."
+    fail "Chanterelle requires macOS 14.2 or later. This Mac is running $MACOS_VERSION."
 fi
 
 if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
@@ -99,7 +101,7 @@ if ! CLANG="$(/usr/bin/xcrun --sdk macosx --find clang 2>/dev/null)" ||
     fail "The selected Apple developer tools do not provide clang and a macOS SDK. Complete Xcode setup or update Command Line Tools, then try again."
 fi
 
-for source_file in Sources/main.m Sources/UFAudioEngine.m Sources/UFAudioEngine.h Sources/UFEQ.c Sources/UFEQ.h Sources/UFRing.c Sources/UFRing.h Info.plist; do
+for source_file in Sources/main.m Sources/CHAudioEngine.m Sources/CHAudioEngine.h Sources/CHEQ.c Sources/CHEQ.h Sources/CHRing.c Sources/CHRing.h Sources/CHPresets.h Info.plist Resources/AppIcon.icns; do
     [[ -f "$PROJECT_DIR/$source_file" ]] || fail "A required file is missing: $source_file"
 done
 
@@ -134,8 +136,8 @@ printf 'Building %s for this Mac.\n' "$APP_NAME"
 "$CLANG" "${COMMON_FLAGS[@]}" "${OBJC_FLAGS[@]}" -std=gnu11 \
     -I "$PROJECT_DIR/Sources" -c "$PROJECT_DIR/Sources/main.m" -o "$BUILD_TEMP/main.o"
 "$CLANG" "${COMMON_FLAGS[@]}" "${OBJC_FLAGS[@]}" -std=gnu11 \
-    -I "$PROJECT_DIR/Sources" -c "$PROJECT_DIR/Sources/UFAudioEngine.m" -o "$BUILD_TEMP/UFAudioEngine.o"
-for c_source in UFEQ UFRing; do
+    -I "$PROJECT_DIR/Sources" -c "$PROJECT_DIR/Sources/CHAudioEngine.m" -o "$BUILD_TEMP/CHAudioEngine.o"
+for c_source in CHEQ CHRing; do
     "$CLANG" "${COMMON_FLAGS[@]}" -std=c11 \
         -I "$PROJECT_DIR/Sources" -c "$PROJECT_DIR/Sources/$c_source.c" -o "$BUILD_TEMP/$c_source.o"
 done
@@ -143,8 +145,9 @@ done
 BUILT_APP="$BUILD_TEMP/$APP_NAME.app"
 /bin/mkdir -p "$BUILT_APP/Contents/MacOS" "$BUILT_APP/Contents/Resources"
 /bin/cp "$PROJECT_DIR/Info.plist" "$BUILT_APP/Contents/Info.plist"
+/bin/cp "$PROJECT_DIR/Resources/AppIcon.icns" "$BUILT_APP/Contents/Resources/AppIcon.icns"
 "$CLANG" "${COMMON_FLAGS[@]}" -fobjc-arc -fblocks \
-    "$BUILD_TEMP/main.o" "$BUILD_TEMP/UFAudioEngine.o" "$BUILD_TEMP/UFEQ.o" "$BUILD_TEMP/UFRing.o" \
+    "$BUILD_TEMP/main.o" "$BUILD_TEMP/CHAudioEngine.o" "$BUILD_TEMP/CHEQ.o" "$BUILD_TEMP/CHRing.o" \
     -framework AppKit -framework Foundation -framework CoreAudio -framework AudioToolbox -framework AudioUnit \
     -o "$BUILT_APP/Contents/MacOS/$EXECUTABLE_NAME"
 /bin/chmod 755 "$BUILT_APP/Contents/MacOS/$EXECUTABLE_NAME"
@@ -181,6 +184,21 @@ int main(int argc, char **argv) {
 C
 "$CLANG" "${COMMON_FLAGS[@]}" "$BUILD_TEMP/publish_app.c" -o "$BUILD_TEMP/publish_app"
 
+app_is_running() {
+    /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x "$EXECUTABLE_NAME" >/dev/null 2>&1 ||
+        /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x "$LEGACY_APP_NAME" >/dev/null 2>&1
+}
+
+check_legacy_install() {
+    local legacy_app="$1"
+    if app_is_running; then
+        fail "Quit Chanterelle or the previous version from its menu bar menu, then run this script again. The running app was left unchanged."
+    fi
+    if [[ -e "$legacy_app" || -L "$legacy_app" ]]; then
+        fail "An older installation exists at $legacy_app. Quit it, then deliberately move it to a backup location before installing Chanterelle. The older app and saved preferences were left unchanged."
+    fi
+}
+
 check_existing_app() {
     local destination="$1"
     local existing_identifier=""
@@ -190,8 +208,8 @@ check_existing_app() {
         existing_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$destination/Contents/Info.plist" 2>/dev/null || true)"
         [[ "$existing_identifier" == "$BUNDLE_IDENTIFIER" ]] ||
             fail "The destination belongs to another app and was left unchanged: $destination"
-        if /usr/bin/pgrep -u "$(/usr/bin/id -u)" -x "$EXECUTABLE_NAME" >/dev/null 2>&1; then
-            fail "Quit UltraFineTune from its menu bar menu, then run this script again. The running app was left unchanged."
+        if app_is_running; then
+            fail "Quit Chanterelle or the previous version from its menu bar menu, then run this script again. The running app was left unchanged."
         fi
     fi
 }
@@ -205,7 +223,7 @@ publish_app() {
     [[ ! -L "$destination_parent" ]] || fail "The destination folder is a symbolic link: $destination_parent"
     /bin/mkdir -p "$destination_parent"
     check_existing_app "$destination"
-    PUBLISH_TEMP="$(/usr/bin/mktemp -d "$destination_parent/.UltraFineTune-stage.XXXXXX")"
+    PUBLISH_TEMP="$(/usr/bin/mktemp -d "$destination_parent/.Chanterelle-stage.XXXXXX")"
     /usr/bin/ditto "$source_app" "$PUBLISH_TEMP/$APP_NAME.app"
     /usr/bin/codesign --verify --strict "$PUBLISH_TEMP/$APP_NAME.app"
     check_existing_app "$destination"
@@ -223,14 +241,19 @@ publish_app "$BUILT_APP" "$DIST_APP"
 printf '\nBuilt: %s\n' "$DIST_APP"
 
 if (( SHOULD_INSTALL )); then
+    check_legacy_install "$HOME/Applications/$LEGACY_APP_NAME.app"
+    check_legacy_install "/Applications/$LEGACY_APP_NAME.app"
     INSTALLED_APP="$HOME/Applications/$APP_NAME.app"
     publish_app "$DIST_APP" "$INSTALLED_APP"
     printf 'Installed: %s\n' "$INSTALLED_APP"
     if (( SHOULD_RUN )); then
         /usr/bin/open "$INSTALLED_APP"
-        printf 'Opened UltraFineTune. Look for its icon in the menu bar.\n'
+        printf 'Opened Chanterelle. Look for its icon in the menu bar.\n'
     fi
 elif (( RUN_LOCAL )); then
+    if app_is_running; then
+        fail "Quit Chanterelle or the previous version before opening this local build. The running app was left unchanged."
+    fi
     /usr/bin/open "$DIST_APP"
     printf 'Opened the local app; tuning starts off. No installation was performed.\n'
 else

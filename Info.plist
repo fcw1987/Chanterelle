@@ -5,21 +5,24 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>UltraFineTune</string>
+    <string>Chanterelle</string>
     <key>CFBundleExecutable</key>
-    <string>UltraFineTune</string>
+    <string>Chanterelle</string>
+    <!-- Compatibility: retain the original defaults, permissions, and application identity. -->
     <key>CFBundleIdentifier</key>
     <string>local.ultrafinetune.app</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>UltraFineTune</string>
+    <string>Chanterelle</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.1</string>
+    <string>1.1.0</string>
     <key>CFBundleVersion</key>
-    <string>4</string>
+    <string>5</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.music</string>
     <key>LSMinimumSystemVersion</key>
@@ -28,10 +31,10 @@
     <true/>
     <key>LSUIElement</key>
     <true/>
-    <key>UFReleaseChannel</key>
+    <key>CHReleaseChannel</key>
     <string>stable</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>UltraFineTune processes system playback locally in memory to apply your equalizer. It does not record audio, send it over a network, or use the microphone or screen.</string>
+    <string>Chanterelle processes system playback locally in memory to apply your equalizer. It does not record audio, send it over a network, or use the microphone or screen.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>

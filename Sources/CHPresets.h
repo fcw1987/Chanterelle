@@ -1,9 +1,9 @@
-#ifndef UF_PRESETS_H
-#define UF_PRESETS_H
+#ifndef CH_PRESETS_H
+#define CH_PRESETS_H
 #include <stddef.h>
-typedef struct { const char *name; float bass, mid, treble, trim; const char *note; } UFPreset;
+typedef struct { const char *name; float bass, mid, treble, trim; const char *note; } CHPreset;
 /* Moderate subjective starting points. No model-specific measured correction. */
-static const UFPreset UF_PRESETS[] = {
+static const CHPreset CH_PRESETS[] = {
     {"Neutral", 0, 0, 0, 0, "Flat tone and zero trim; processing can still be on"},
     {"Everyday", -1, 0.5f, -0.5f, 0, "Gentle balance for mixed listening"},
     {"Podcast / Speech", -2.5f, 1.5f, 0.5f, 0, "Less low-end weight, a little more voice presence"},
@@ -13,5 +13,5 @@ static const UFPreset UF_PRESETS[] = {
     {"Less boom", -4, 0, 1, 0, "Reduce bass weight without a large high-frequency boost"},
     {"Softer treble", 0, -1, -3, 0, "Reduce brightness and edge"}
 };
-#define UF_PRESET_COUNT (sizeof(UF_PRESETS) / sizeof(UF_PRESETS[0]))
+#define CH_PRESET_COUNT (sizeof(CH_PRESETS) / sizeof(CH_PRESETS[0]))
 #endif

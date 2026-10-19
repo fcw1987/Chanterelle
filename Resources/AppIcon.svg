@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Chanterelle app icon</title>
+  <desc>A golden, ridged chanterelle mushroom on a deep forest green macOS rounded tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="160" y1="70" x2="840" y2="980" gradientUnits="userSpaceOnUse"><stop stop-color="#244D40"/><stop offset="1" stop-color="#102F29"/></linearGradient>
+    <linearGradient id="stem" x1="482" y1="410" x2="545" y2="875" gradientUnits="userSpaceOnUse"><stop stop-color="#E7A340"/><stop offset="1" stop-color="#F4C573"/></linearGradient>
+    <linearGradient id="cap" x1="485" y1="178" x2="526" y2="568" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD98C"/><stop offset=".55" stop-color="#F3B44D"/><stop offset="1" stop-color="#D98827"/></linearGradient>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="214" fill="url(#tile)"/>
+  <rect x="42" y="42" width="940" height="940" rx="212" stroke="#46685A" stroke-width="4"/>
+  <path d="M221 809c83 35 168 52 278 52 111 0 204-17 307-56" stroke="#416153" stroke-width="12" stroke-linecap="round"/>
+  <path d="M427 789c37-97 59-209 51-363l135-20c-28 171-22 283 14 388 16 46-27 80-95 79-67 0-123-30-105-84Z" fill="url(#stem)"/>
+  <path d="M482 483c4 123-13 218-35 310m121-320c-15 134-5 234 29 330" stroke="#CE8D36" stroke-width="14" stroke-linecap="round"/>
+  <path d="M165 288c33-60 88-5 148-42 61-39 81-106 148-89 72 18 90 72 165 61 65-9 70 63 108 84 66 35 59 100 1 133-105 60-189 76-277 127-64-49-189-64-276-119-70-45-74-94-17-155Z" fill="#DA8D2D"/>
+  <path d="M165 287c34-43 83 4 144-32 66-39 89-91 151-76 70 18 92 69 169 57 54-8 62 54 99 76 26 16 40 36 36 60-54 35-179 53-286 58-134 6-257-37-313-76-13-24-13-44 0-67Z" fill="url(#cap)"/>
+  <path d="M185 321c50 5 118 70 273 67 159-3 220-77 281-68 15 61-132 128-270 133-129 4-287-71-284-132Z" fill="#FFD38A"/>
+  <path d="M290 281c61 8 109 49 180 45 83-3 124-44 173-47-46 57-111 88-176 90-71 2-131-34-177-88Z" fill="#BC7326"/>
+  <path d="M324 292c51 10 91 35 146 33 59-2 99-26 139-34" stroke="#E9A542" stroke-width="9" stroke-linecap="round"/>
+  <g stroke="#BD7629" stroke-width="11" stroke-linecap="round">
+    <path d="m218 415 249 120m-163-100 169 96m-84-87 90 84m-30-75 34 70m53-75-40 78m127-95-118 97m196-132-184 130m233-161L516 517"/>
+  </g>
+  <path d="M167 304c24-37 66-4 119-27m91-58c27-22 46-30 71-25m218 75c16 9 20 25 37 38" stroke="#FFE4A9" stroke-width="14" stroke-linecap="round"/>
+</svg>
