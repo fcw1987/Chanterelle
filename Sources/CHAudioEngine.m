@@ -24,7 +24,7 @@
  output selection, and physical device formats remain under the user's control.
  */
 
-// Preserve the legacy error domain and private Core Audio names/UID prefix for compatibility.
+// Preserve the legacy error domain and private Core Audio UID prefix for compatibility.
 static NSString * const CHErrorDomain = @"local.UltraFineTune.Audio";
 
 typedef NS_ENUM(NSInteger, CHErrorCode) {
@@ -665,7 +665,7 @@ static OSStatus CHOutputRender(void *userData, AudioUnitRenderActionFlags *flags
                                                              andDeviceUID:uid withStream:0];
         if (!_tapDescription)
             return [self failStart:CHError(CHErrorCoreAudio, @"Core Audio could not describe the audio tap.", noErr) error:error];
-        // These hidden Core Audio identities intentionally survive the Chanterelle rename.
+        // Public Core Audio labels use Chanterelle; the hidden UID prefix below stays compatible.
         [_tapDescription setName:@"Chanterelle audio"];
         [_tapDescription setPrivate:YES];
         [_tapDescription setMuteBehavior:CATapUnmuted];
